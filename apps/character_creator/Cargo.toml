@@ -6,5 +6,5 @@ edition.workspace = true
 
 [dependencies]
 bevy = { version = "0.10.1" }
-grim = { workspace = true }
+pikaxe = { workspace = true }
 log = { workspace = true }

@@ -12,7 +12,7 @@ edition = "2021"
 
 [workspace.dependencies]
 clap = { version = "4.3.11", features = ["derive"] }
-grim = { path = "../grim/core/grim", features = [ "midi", "model" ] }
+pikaxe = { package = "grim", path = "../grim/core/grim", features = [ "midi", "model" ] }
 log = "0.4.19"
 
 [profile.dev.package."*"]
