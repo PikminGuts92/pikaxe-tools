@@ -1,0 +1,10 @@
+[package]
+name = "character_creator"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+bevy = { version = "0.10.1" }
+grim = { workspace = true }
+log = { workspace = true }

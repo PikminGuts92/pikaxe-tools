@@ -1,0 +1,22 @@
+[workspace]
+members = [
+    "apps/*",
+    #"core/*",
+]
+resolver = "2" # Super duper important for bevy!
+
+[workspace.package]
+version = "0.1.0"
+authors = ["PikminGuts92"]
+edition = "2021"
+
+[workspace.dependencies]
+clap = { version = "4.3.11", features = ["derive"] }
+grim = { path = "../grim/core/grim", features = [ "midi", "model" ] }
+log = "0.4.19"
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+strip = true
