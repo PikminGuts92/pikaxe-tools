@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "apps/*",
-    #"core/*",
+    "core/*",
 ]
 resolver = "2" # Super duper important for bevy!
 
