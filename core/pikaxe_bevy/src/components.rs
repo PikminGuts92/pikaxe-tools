@@ -16,9 +16,15 @@ pub struct MiloMesh {
 pub struct MiloBone;
 
 #[derive(Component)]
+pub struct MiloCam;
+
+#[derive(Component)]
 pub struct MiloCharHair;
 
 #[derive(Component)]
 pub struct MiloGroup {
     pub objects: Vec<u32>,
 }
+
+#[derive(Component)]
+pub struct MiloRoot;

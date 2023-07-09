@@ -6,6 +6,8 @@ edition.workspace = true
 
 [dependencies]
 bevy = { version = "0.10.1" }
+bevy_fly_camera = "0.10.0"
+bevy_infinite_grid = "0.7.0"
 clap = { workspace = true }
 pikaxe = { workspace = true }
 pikaxe_bevy = { path = "../../core/pikaxe_bevy" }
