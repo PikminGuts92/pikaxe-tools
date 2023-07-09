@@ -48,8 +48,10 @@ fn init_world(
 
     commands
         .spawn_empty()
-        .insert(trans)
-        .insert(GlobalTransform::from(trans))
+        .insert(TransformBundle {
+            local: trans,
+            global: GlobalTransform::from(trans)
+        })
         .insert(VisibilityBundle::default())
         .insert(MiloRoot);
 }
@@ -88,8 +90,20 @@ fn process_milo_scene_events(
                             },
                             transform: Transform::from_matrix(
                                 map_matrix(cam.get_world_xfm()) // TODO: Use local instead
+                            ).looking_at(Vec3::ZERO, Vec3::Z),
+                            projection: Projection::Perspective(
+                                PerspectiveProjection {
+                                    fov: cam.y_fov,
+                                    aspect_ratio: 1.0,
+                                    near: cam.near_plane,
+                                    far: cam.far_plane
+                                }
                             ),
                             ..Default::default()
+                        })
+                        .insert(MiloObject {
+                            id: 0, // TODO: Assign unique id
+                            name: cam.name.to_owned(),
                         })
                         .id();
 
@@ -146,21 +160,22 @@ fn process_milo_scene_events(
                     };
 
                     // Add mesh
-                    let mesh_entity = commands.spawn(PbrBundle {
-                        mesh: meshes.add(bevy_mesh),
-                        material: materials.add(bevy_mat),
-                        transform: Transform::from_matrix(mat),
-                        ..Default::default()
-                    })
-                    .insert(MiloObject {
-                        id: 0, // TODO: Assign unique id
-                        name: mesh.name.to_owned(),
-                    })
-                    .insert(MiloMesh {
-                        verts: mesh.vertices.len(),
-                        faces: mesh.faces.len()
-                    })
-                    .id();
+                    let mesh_entity = commands
+                        .spawn(PbrBundle {
+                            mesh: meshes.add(bevy_mesh),
+                            material: materials.add(bevy_mat),
+                            transform: Transform::from_matrix(mat),
+                            ..Default::default()
+                        })
+                        .insert(MiloObject {
+                            id: 0, // TODO: Assign unique id
+                            name: mesh.name.to_owned(),
+                        })
+                        .insert(MiloMesh {
+                            verts: mesh.vertices.len(),
+                            faces: mesh.faces.len()
+                        })
+                        .id();
 
                     commands
                         .entity(root_entity)
