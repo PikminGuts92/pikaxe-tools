@@ -1,9 +1,16 @@
 use crate::prelude::*;
 use bevy::prelude::*;
+use bevy::render::render_resource::{AddressMode, Extent3d, SamplerDescriptor, TextureDimension, TextureFormat};
+use bevy::render::texture::ImageSampler;
+use bevy::tasks::{AsyncComputeTaskPool, Task};
+use std::collections::{HashMap, HashSet};
+use futures_lite::future;
 use pikaxe::ark::{Ark, ArkOffsetEntry};
 use pikaxe::io::*;
-use pikaxe::scene::{CamObject, Matrix, Object, ObjectDir, Trans, RndMesh};
-use pikaxe::SystemInfo;
+use pikaxe::scene::{CamObject, Matrix, MiloObject as MObject, Object, ObjectDir, Trans, RndMesh};
+use pikaxe::texture::Bitmap;
+use pikaxe::{Platform, SystemInfo};
+use std::num::NonZeroU8;
 use std::path::PathBuf;
 
 #[derive(Default)]
@@ -29,6 +36,7 @@ impl Plugin for MiloPlugin {
 
         app.add_startup_system(init_world);
         app.add_system(process_milo_scene_events);
+        app.add_system(process_milo_async_textures);
     }
 }
 
@@ -69,6 +77,7 @@ fn process_milo_scene_events(
         log::debug!("{}", &e.path);
     }*/
 
+    let thread_pool = AsyncComputeTaskPool::get();
     let root_entity = root_query.single();
 
     // TODO: Check if path ends in .milo
@@ -76,7 +85,143 @@ fn process_milo_scene_events(
         log::debug!("Loading Scene: \"{}\"", milo_path);
 
         let ark = state.ark.as_ref().unwrap();
-        let mut milo = open_milo(ark, &milo_path).unwrap();
+        let (sys_info, mut milo) = open_milo(ark, &milo_path).unwrap();
+
+        //let mut texture_map = HashMap::new(); // name -> tex future
+
+        let (milo_textures, milo_materials, milo_meshes) = milo
+            .get_entries()
+            .iter()
+            .fold((HashMap::new(), HashMap::new(), HashMap::new()), |(mut tx, mut mt, mut ms), e| {
+                match e {
+                    Object::Mat(mat) => {
+                        mt.insert(mat.get_name(), mat);
+                    },
+                    Object::Mesh(mesh) => {
+                        ms.insert(mesh.get_name(), mesh);
+                    },
+                    Object::Tex(tex) => {
+                        tx.insert(tex.get_name(), tex);
+                    },
+                    _ => {}
+                }
+
+                (tx, mt, ms)
+            });
+
+        // Mesh -> mat
+        let materials_to_load = milo_meshes
+            .values()
+            .map(|m| &m.mat)
+            .collect::<HashSet<_>>()
+            .iter()
+            .flat_map(|m| milo_materials.get(m).as_ref().map(|m| *m))
+            .collect::<Vec<_>>();
+
+        // Mesh -> mat -> tex (create tasks)
+        let mut textures_to_load = materials_to_load
+            .iter()
+            .fold(HashSet::new(), |mut acc, m| {
+                acc.insert(&m.diffuse_tex);
+                acc.insert(&m.normal_map);
+                acc.insert(&m.emissive_map);
+
+                acc
+            })
+            .into_iter()
+            .flat_map(|t| milo_textures.get(t).map(|t| *t))
+            .filter(|t| t.bitmap.is_some())
+            .map(|tex| {
+                let sys_info = sys_info.clone();
+
+                /*let name = tex
+                    .get_name()
+                    .to_owned();*/
+
+                let bitmap = tex.bitmap
+                    .as_ref()
+                    .unwrap()
+                    .clone();
+
+                let task = thread_pool.spawn(async move {
+                    // Decode texture
+                    let (decoded, bpp, format) = match (&sys_info.platform, bitmap.encoding) {
+                        (Platform::X360 | Platform::PS3, enc @ (8 | 24 | 32)) => {
+                            let mut data = bitmap.raw_data;
+
+                            if sys_info.platform.eq(&Platform::X360) {
+                                // Swap bytes
+                                for ab in data.chunks_mut(2) {
+                                    let tmp = ab[0];
+
+                                    ab[0] = ab[1];
+                                    ab[1] = tmp;
+                                }
+                            }
+
+                            let format = match enc {
+                                24 => TextureFormat::Bc3RgbaUnormSrgb, // DXT5
+                                32 => TextureFormat::Bc5RgUnorm,       // ATI2
+                                _  => TextureFormat::Bc1RgbaUnormSrgb, // DXT1
+                            };
+
+                            (data, bitmap.bpp as usize, format)
+                        },
+                        _ => {
+                            let data = bitmap.unpack_rgba(&sys_info)
+                                .expect("Can't decode \"{name}\" texture");
+
+                            (data, 32, TextureFormat::Rgba8UnormSrgb)
+                        }
+                    };
+
+                    let Bitmap { width, height, mip_maps, .. } = bitmap;
+
+                    let tex_size = ((width as usize) * (height as usize) * bpp) / 8;
+                    let use_mips = decoded.len() > tex_size; // TODO: Always support mips?
+
+                    let img_slice = if use_mips {
+                        &decoded
+                    } else {
+                        &decoded[..tex_size]
+                    };
+
+                    let image_new_fn = match format {
+                        TextureFormat::Rgba8UnormSrgb => image_new_fill, // Use fill method for older textures
+                        _ => image_new,
+                    };
+
+                    let mut texture = /*Image::new_fill*/ image_new_fn(
+                        Extent3d {
+                            width: width.into(),
+                            height: height.into(),
+                            depth_or_array_layers: 1,
+                        },
+                        TextureDimension::D2,
+                        img_slice,
+                        format
+                    );
+
+                    // Update texture wrap mode
+                    texture.sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor {
+                        address_mode_u: AddressMode::Repeat,
+                        address_mode_v: AddressMode::Repeat,
+                        anisotropy_clamp: NonZeroU8::new(16),
+                        ..SamplerDescriptor::default()
+                    });
+
+                    // Set mipmap level
+                    if use_mips {
+                        texture.texture_descriptor.mip_level_count = mip_maps as u32 + 1;
+                    }
+
+                    texture
+                });
+
+                // Tex name, (task, Vec<(mat handle, tex type)>)
+                (tex.get_name(), (task, Vec::new()))
+            })
+            .collect::<HashMap<_, _>>();
 
         for obj in milo.get_entries() {
             match obj {
@@ -105,6 +250,7 @@ fn process_milo_scene_events(
                             id: 0, // TODO: Assign unique id
                             name: cam.name.to_owned(),
                         })
+                        .insert(MiloCam)
                         .id();
 
                     commands
@@ -150,20 +296,63 @@ fn process_milo_scene_events(
                     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_TANGENT, tangents);
                     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
 
-                    // TODO: Map texture
+                    let milo_mat = milo_materials.get(&mesh.mat);
 
-                    let bevy_mat = StandardMaterial {
-                        base_color: Color::rgb(0.3, 0.5, 0.3),
-                        double_sided: true,
-                        unlit: false,
-                        ..Default::default()
+                    let bevy_mat = match milo_mat {
+                        Some(mat) => StandardMaterial {
+                            //alpha_mode: AlphaMode::Blend,
+                            base_color: Color::rgba(
+                                mat.color.r,
+                                mat.color.g,
+                                mat.color.b,
+                                mat.alpha,
+                            ),
+                            double_sided: true,
+                            unlit: true,
+                            base_color_texture: None,
+                            normal_map_texture: None,
+                            emissive_texture: None,
+                            //roughness: 0.8, // TODO: Bevy 0.6 migration
+                            /*base_color_texture: get_texture(&mut loader, &mat.diffuse_tex, system_info)
+                                .and_then(map_texture)
+                                .and_then(|t| Some(bevy_textures.add(t))),
+                            normal_map: get_texture(&mut loader, &mat.norm_detail_map, system_info)
+                                .and_then(map_texture)
+                                .and_then(|t| Some(bevy_textures.add(t))),
+                            emissive_texture: get_texture(&mut loader, &mat.emissive_map, system_info)
+                                .and_then(map_texture)
+                                .and_then(|t| Some(bevy_textures.add(t))),*/
+                            ..Default::default()
+                        },
+                        None => StandardMaterial {
+                            base_color: Color::rgb(0.3, 0.5, 0.3),
+                            double_sided: true,
+                            unlit: false,
+                            ..Default::default()
+                        },
                     };
+
+                    let mat_handle = materials.add(bevy_mat);
+
+                    let textures = [
+                        (milo_mat.map(|mat| &mat.diffuse_tex), TextureType::Diffuse),
+                        (milo_mat.map(|mat| &mat.normal_map), TextureType::Normal),
+                        (milo_mat.map(|mat| &mat.emissive_map), TextureType::Emissive),
+                    ];
+
+                    for (tex, typ) in textures.into_iter() {
+                        let Some((_, mats)) = tex.and_then(|t| textures_to_load.get_mut(t)) else {
+                            continue
+                        };
+
+                        mats.push((mat_handle.clone(), typ));
+                    }
 
                     // Add mesh
                     let mesh_entity = commands
                         .spawn(PbrBundle {
                             mesh: meshes.add(bevy_mesh),
-                            material: materials.add(bevy_mat),
+                            material: mat_handle,
                             transform: Transform::from_matrix(mat),
                             ..Default::default()
                         })
@@ -185,11 +374,55 @@ fn process_milo_scene_events(
             }
         }
 
+        // Add image tasks to components
+        for (name, (task, mats)) in textures_to_load.into_iter() {
+            commands
+                .spawn(MiloAsyncTexture {
+                    tex_name: name.to_owned(),
+                    image_task: task,
+                    mat_handles: mats
+                });
+        }
+
         state.objects.append(milo.get_entries_mut());
     }
 }
 
-fn open_milo(ark: &Ark, milo_path: &str) -> Option<ObjectDir> {
+fn process_milo_async_textures(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
+    mut task_query: Query<(Entity, &mut MiloAsyncTexture)>,
+) {
+    for (entity, mut async_tex) in &mut task_query {
+        if let Some(img) = future::block_on(future::poll_once(&mut async_tex.image_task)) {
+            // Add texture
+            let img_handle = images.add(img);
+
+            // Update material
+            for (mat_handle, tex_type) in async_tex.mat_handles.iter() {
+                let mat = materials.get_mut(mat_handle).unwrap(); // Shouldn't fail
+
+                let tex_field = match tex_type {
+                    TextureType::Diffuse => &mut mat.base_color_texture,
+                    TextureType::Normal => &mut mat.normal_map_texture,
+                    TextureType::Emissive => &mut mat.emissive_texture
+                };
+
+                *tex_field = Some(img_handle.clone());
+            }
+
+            // Remove task entity
+            commands
+                .entity(entity)
+                .despawn();
+
+            log::info!("Loaded texture: {}", &async_tex.tex_name);
+        }
+    }
+}
+
+fn open_milo(ark: &Ark, milo_path: &str) -> Option<(SystemInfo, ObjectDir)> {
     let entry = get_entry_from_path(ark, milo_path)?;
 
     let data = ark.get_stream(entry.id).ok()?;
@@ -203,7 +436,7 @@ fn open_milo(ark: &Ark, milo_path: &str) -> Option<ObjectDir> {
     let mut obj_dir = milo.unpack_directory(&system_info).ok()?;
     obj_dir.unpack_entries(&system_info).ok()?;
 
-    Some(obj_dir)
+    Some((system_info, obj_dir))
 }
 
 fn get_entry_from_path<'a>(ark: &'a Ark, path: &str) -> Option<&'a ArkOffsetEntry> {
@@ -253,6 +486,56 @@ pub fn map_matrix(m: &Matrix) -> Mat4 {
         m.m43,
         m.m44,
     ])
+}
+
+fn image_new(
+    size: Extent3d,
+    dimension: TextureDimension,
+    pixel: &[u8],
+    format: TextureFormat,
+) -> Image {
+    // Problematic!!!
+    /*debug_assert_eq!(
+        size.volume() * format.pixel_size(),
+        data.len(),
+        "Pixel data, size and format have to match",
+    );*/
+    let mut image = Image {
+        data: pixel.to_owned(),
+        ..Default::default()
+    };
+    image.texture_descriptor.dimension = dimension;
+    image.texture_descriptor.size = size;
+    image.texture_descriptor.format = format;
+    image
+}
+
+fn image_new_fill(
+    size: Extent3d,
+    dimension: TextureDimension,
+    pixel: &[u8],
+    format: TextureFormat,
+) -> Image {
+    let mut value = Image::default();
+    value.texture_descriptor.format = format;
+    value.texture_descriptor.dimension = dimension;
+    value.resize(size);
+
+    // Problematic!!!
+    /*debug_assert_eq!(
+        pixel.len() % format.pixel_size(),
+        0,
+        "Must not have incomplete pixel data."
+    );
+    debug_assert!(
+        pixel.len() <= value.data.len(),
+        "Fill data must fit within pixel buffer."
+    );*/
+
+    for current_pixel in value.data.chunks_exact_mut(pixel.len()) {
+        current_pixel.copy_from_slice(pixel);
+    }
+    value
 }
 
 // TODO: Load textures async

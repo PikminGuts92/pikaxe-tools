@@ -1,4 +1,18 @@
 use bevy::prelude::*;
+use bevy::tasks::Task;
+
+pub(crate) enum TextureType {
+    Diffuse,
+    Normal,
+    Emissive
+}
+
+#[derive(Component)]
+pub(crate) struct MiloAsyncTexture {
+    pub tex_name: String,
+    pub image_task: Task<Image>,
+    pub mat_handles: Vec<(Handle<StandardMaterial>, TextureType)>,
+}
 
 #[derive(Component)]
 pub struct MiloObject {
