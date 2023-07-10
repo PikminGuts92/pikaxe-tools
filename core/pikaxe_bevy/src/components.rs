@@ -15,9 +15,13 @@ pub(crate) struct MiloAsyncTexture {
 }
 
 #[derive(Component)]
+pub struct MiloBandPlacer;
+
+#[derive(Component)]
 pub struct MiloObject {
     pub id: u32,
     pub name: String,
+    pub dir: String,
 }
 
 #[derive(Component)]

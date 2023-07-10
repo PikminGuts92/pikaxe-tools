@@ -12,6 +12,9 @@ use pikaxe_bevy::prelude::*;
 const PROJECT_NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[derive(Component)]
+pub struct SelectedCharacter;
+
 fn main() {
     let args = CreatorArgs::init();
 
@@ -29,6 +32,7 @@ fn main() {
                 ..Default::default()
             })
         )
+        .insert_resource(ClearColor(Color::BLACK))
         .add_plugin(MiloPlugin {
             ark_path: Some(args.ark_path.into()),
             default_outfit: args.default_outfit,
@@ -39,6 +43,9 @@ fn main() {
         .add_startup_system(init_milos)
         .add_startup_system(setup)
         .add_system(control_camera)
+        .add_system(attach_free_cam)
+        .add_system(load_default_character)
+        .add_system(set_placer_as_char_parent)
         .run();
 }
 
@@ -48,7 +55,10 @@ fn init_milos(
 ) {
     let default_files = [
         "ui/sel_character.milo",
-        "ui/metacam.milo"
+        "ui/metacam.milo",
+        //"world/battle/og/battle_geom.milo",
+        //"world/arena/og/arena_geom.milo",
+        //"world/fest/og/fest_geom.milo"
     ];
 
     for milo_path in default_files {
@@ -96,7 +106,7 @@ fn setup(
             shadow_color: None, // No shadow
             ..InfiniteGrid::default()
         },
-        visibility: Visibility::Visible,
+        visibility: Visibility::Hidden,
         ..InfiniteGridBundle::default()
     });
 }
@@ -153,4 +163,53 @@ fn is_camera_button_down(key_input: &Res<Input<KeyCode>>) -> bool {
     control_keys
         .iter()
         .any(|k| key_input.pressed(*k))
+}
+
+fn attach_free_cam(
+    mut commands: Commands,
+    cam_query: Query<Entity, (&Camera, Without<FlyCamera>)>,
+) {
+    for cam_entity in cam_query.iter() {
+        commands
+            .entity(cam_entity)
+            .insert(FlyCamera {
+                enabled: false,
+                sensitivity: 0.0,
+                ..Default::default()
+            });
+    }
+}
+
+fn load_default_character(
+    mut scene_events_writer: EventWriter<LoadMiloScene>,
+    placer_query: Query<Entity, Added<MiloBandPlacer>>,
+) {
+    if placer_query.get_single().is_ok() {
+        scene_events_writer.send(LoadMiloScene("char/alterna1/og/alterna1_ui.milo".into()));
+    }
+}
+
+fn set_placer_as_char_parent(
+    mut commands: Commands,
+    //mut scene_events_reader: EventReader<LoadMiloSceneComplete>,
+    char_objects_query: Query<(Entity, &MiloObject), (Added<MiloObject>, Without<SelectedCharacter>)>,
+    placer_query: Query<Entity, With<MiloBandPlacer>>,
+) {
+    let Ok(placer_entity) = placer_query.get_single() else {
+        return
+    };
+
+    for (entity, obj) in char_objects_query.iter() {
+        if obj.dir.ne("alterna1") { // TODO: Do less hacky
+            continue;
+        }
+
+        commands
+            .entity(entity)
+            .insert(SelectedCharacter);
+
+        commands
+            .entity(placer_entity)
+            .add_child(entity);
+    }
 }

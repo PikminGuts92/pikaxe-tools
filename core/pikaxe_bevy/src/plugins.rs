@@ -2,12 +2,12 @@ use crate::prelude::*;
 use bevy::prelude::*;
 use bevy::render::render_resource::{AddressMode, Extent3d, SamplerDescriptor, TextureDimension, TextureFormat};
 use bevy::render::texture::ImageSampler;
-use bevy::tasks::{AsyncComputeTaskPool, Task};
+use bevy::tasks::AsyncComputeTaskPool;
 use std::collections::{HashMap, HashSet};
 use futures_lite::future;
 use pikaxe::ark::{Ark, ArkOffsetEntry};
 use pikaxe::io::*;
-use pikaxe::scene::{CamObject, Matrix, MiloObject as MObject, Object, ObjectDir, Trans, RndMesh};
+use pikaxe::scene::{Blend, Matrix, MiloObject as MObject, Object, ObjectDir, Trans, RndMesh, ZMode};
 use pikaxe::texture::Bitmap;
 use pikaxe::{Platform, SystemInfo};
 use std::num::NonZeroU8;
@@ -31,6 +31,7 @@ impl Plugin for MiloPlugin {
 
         app.add_event::<ClearMiloScene>();
         app.add_event::<LoadMiloScene>();
+        app.add_event::<LoadMiloSceneComplete>();
 
         app.insert_resource(state);
 
@@ -56,11 +57,11 @@ fn init_world(
 
     commands
         .spawn_empty()
-        .insert(TransformBundle {
-            local: trans,
-            global: GlobalTransform::from(trans)
+        .insert(SpatialBundle {
+            transform: trans,
+            global_transform: GlobalTransform::from(trans),
+            ..Default::default()
         })
-        .insert(VisibilityBundle::default())
         .insert(MiloRoot);
 }
 
@@ -71,6 +72,7 @@ fn process_milo_scene_events(
     mut state: ResMut<MiloState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut scene_events_writer: EventWriter<LoadMiloSceneComplete>,
     root_query: Query<Entity, With<MiloRoot>>,
 ) {
     /*for e in state.ark.as_ref().unwrap().entries.iter() {
@@ -86,6 +88,10 @@ fn process_milo_scene_events(
 
         let ark = state.ark.as_ref().unwrap();
         let (sys_info, mut milo) = open_milo(ark, &milo_path).unwrap();
+
+        let obj_dir_name = match &milo {
+            ObjectDir::ObjectDir(dir) => &dir.name
+        };
 
         //let mut texture_map = HashMap::new(); // name -> tex future
 
@@ -178,7 +184,7 @@ fn process_milo_scene_events(
                     let Bitmap { width, height, mip_maps, .. } = bitmap;
 
                     let tex_size = ((width as usize) * (height as usize) * bpp) / 8;
-                    let use_mips = decoded.len() > tex_size; // TODO: Always support mips?
+                    let use_mips = false; // TODO: Always support mips?
 
                     let img_slice = if use_mips {
                         &decoded
@@ -225,6 +231,29 @@ fn process_milo_scene_events(
 
         for obj in milo.get_entries() {
             match obj {
+                Object::BandPlacer(band_placer) => {
+                    // Get transform (TODO: Get full computed?)
+                    let mat = map_matrix(band_placer.get_world_xfm());
+
+                    let placer_entity = commands
+                        .spawn(SpatialBundle {
+                            transform: Transform::from_matrix(mat),
+                            ..Default::default()
+                        })
+                        .insert(MiloObject {
+                            id: 0, // TODO: Assign unique id
+                            name: band_placer.name.to_owned(),
+                            dir: obj_dir_name.to_owned(),
+                        })
+                        .insert(MiloBandPlacer)
+                        .id();
+
+                    commands
+                        .entity(root_entity)
+                        .add_child(placer_entity);
+
+                    log::info!("Loaded band placer: {}", band_placer.get_name());
+                },
                 Object::Cam(cam) => {
                     let cam_entity = commands
                         .spawn_empty()
@@ -249,6 +278,7 @@ fn process_milo_scene_events(
                         .insert(MiloObject {
                             id: 0, // TODO: Assign unique id
                             name: cam.name.to_owned(),
+                            dir: obj_dir_name.to_owned(),
                         })
                         .insert(MiloCam)
                         .id();
@@ -256,6 +286,8 @@ fn process_milo_scene_events(
                     commands
                         .entity(root_entity)
                         .add_child(cam_entity);
+
+                    log::info!("Loaded cam: {}", cam.get_name());
                 },
                 Object::Mesh(mesh) => {
                     // Ignore meshes without geometry (used mostly in GH1)
@@ -301,6 +333,10 @@ fn process_milo_scene_events(
                     let bevy_mat = match milo_mat {
                         Some(mat) => StandardMaterial {
                             //alpha_mode: AlphaMode::Blend,
+                            alpha_mode: match (mat.blend, mat.z_mode) {
+                                (Blend::kBlendSrcAlpha, ZMode::kZModeDisable) => AlphaMode::Blend,
+                                _ => AlphaMode::Opaque
+                            },
                             base_color: Color::rgba(
                                 mat.color.r,
                                 mat.color.g,
@@ -359,6 +395,7 @@ fn process_milo_scene_events(
                         .insert(MiloObject {
                             id: 0, // TODO: Assign unique id
                             name: mesh.name.to_owned(),
+                            dir: obj_dir_name.to_owned(),
                         })
                         .insert(MiloMesh {
                             verts: mesh.vertices.len(),
@@ -369,6 +406,8 @@ fn process_milo_scene_events(
                     commands
                         .entity(root_entity)
                         .add_child(mesh_entity);
+
+                    log::info!("Loaded mesh: {}", mesh.get_name());
                 },
                 _ => {}
             }
@@ -385,6 +424,7 @@ fn process_milo_scene_events(
         }
 
         state.objects.append(milo.get_entries_mut());
+        scene_events_writer.send(LoadMiloSceneComplete(milo_path.to_owned()));
     }
 }
 
