@@ -32,20 +32,25 @@ fn main() {
                 ..Default::default()
             })
         )
+        /*.add_plugin(bevy::pbr::wireframe::WireframePlugin)
+        .insert_resource(bevy::pbr::wireframe::WireframeConfig {
+            global: true
+        })*/
         .insert_resource(ClearColor(Color::BLACK))
-        .add_plugin(MiloPlugin {
+        //.insert_resource(Msaa::Sample4)
+        .add_plugins(MiloPlugin {
             ark_path: Some(args.ark_path.into()),
             default_outfit: args.default_outfit,
             ..Default::default()
         })
-        .add_plugin(FlyCameraPlugin)
-        .add_plugin(InfiniteGridPlugin)
-        .add_startup_system(init_milos)
-        .add_startup_system(setup)
-        .add_system(control_camera)
-        .add_system(attach_free_cam)
-        .add_system(load_default_character)
-        .add_system(set_placer_as_char_parent)
+        .add_plugins(FlyCameraPlugin)
+        //.add_plugins(InfiniteGridPlugin)
+        .add_systems(Startup, init_milos)
+        .add_systems(Startup, setup)
+        .add_systems(Update, control_camera)
+        //.add_system(attach_free_cam)
+        .add_systems(Update, load_default_character)
+        .add_systems(Update, set_placer_as_char_parent)
         .run();
 }
 
@@ -95,20 +100,22 @@ fn setup(
 
     commands.spawn(camera).insert(FlyCamera {
         enabled: false,
+        //accel: 400.,
+        //max_speed: 5000.,
         sensitivity: 0.0,
         ..Default::default()
     }); // Fix camera
 
     // Infinite grid
-    commands.spawn(InfiniteGridBundle {
+    /*commands.spawn(InfiniteGridBundle {
         grid: InfiniteGrid {
             fadeout_distance: 300.,
             shadow_color: None, // No shadow
             ..InfiniteGrid::default()
         },
-        visibility: Visibility::Hidden,
+        visibility: Visibility::Visible,
         ..InfiniteGridBundle::default()
-    });
+    });*/
 }
 
 fn control_camera(
@@ -157,7 +164,7 @@ fn is_camera_button_down(key_input: &Res<Input<KeyCode>>) -> bool {
         KeyCode::S,
         KeyCode::D,
         KeyCode::Space,
-        KeyCode::LShift,
+        KeyCode::ShiftLeft,
     ];
 
     control_keys
@@ -165,7 +172,7 @@ fn is_camera_button_down(key_input: &Res<Input<KeyCode>>) -> bool {
         .any(|k| key_input.pressed(*k))
 }
 
-fn attach_free_cam(
+/*fn attach_free_cam(
     mut commands: Commands,
     cam_query: Query<Entity, (&Camera, Without<FlyCamera>)>,
 ) {
@@ -174,11 +181,13 @@ fn attach_free_cam(
             .entity(cam_entity)
             .insert(FlyCamera {
                 enabled: false,
+                //accel: 10.,
+                //max_speed: 50.,
                 sensitivity: 0.0,
                 ..Default::default()
             });
     }
-}
+}*/
 
 fn load_default_character(
     mut scene_events_writer: EventWriter<LoadMiloScene>,
@@ -198,6 +207,8 @@ fn set_placer_as_char_parent(
     let Ok(placer_entity) = placer_query.get_single() else {
         return
     };
+
+    return;
 
     for (entity, obj) in char_objects_query.iter() {
         if obj.dir.ne("alterna1") { // TODO: Do less hacky
