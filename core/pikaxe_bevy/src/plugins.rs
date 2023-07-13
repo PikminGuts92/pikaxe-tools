@@ -569,8 +569,8 @@ fn update_milo_object_parents(
         let new_parent_entity = parent_map
             .get(obj.get_name())
             .and_then(|o| {
-                let parent_name = entity_map.get(o);
-                let entity = parent_name.map(|e| e.clone());
+                let parent_entity = entity_map.get(o);
+                let entity = parent_entity.map(|e| e.clone());
 
                 if entity.is_none() {
                     log::warn!("Can't find trans for \"{}\"", o);

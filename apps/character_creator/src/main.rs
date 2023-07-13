@@ -44,7 +44,7 @@ fn main() {
             ..Default::default()
         })
         .add_plugins(FlyCameraPlugin)
-        //.add_plugins(InfiniteGridPlugin)
+        .add_plugins(InfiniteGridPlugin)
         .add_systems(Startup, init_milos)
         .add_systems(Startup, setup)
         .add_systems(Update, control_camera)
@@ -107,7 +107,7 @@ fn setup(
     }); // Fix camera
 
     // Infinite grid
-    /*commands.spawn(InfiniteGridBundle {
+    commands.spawn(InfiniteGridBundle {
         grid: InfiniteGrid {
             fadeout_distance: 300.,
             shadow_color: None, // No shadow
@@ -115,7 +115,7 @@ fn setup(
         },
         visibility: Visibility::Visible,
         ..InfiniteGridBundle::default()
-    });*/
+    });
 }
 
 fn control_camera(
