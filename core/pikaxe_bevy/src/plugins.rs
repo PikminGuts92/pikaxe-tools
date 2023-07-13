@@ -63,7 +63,7 @@ fn init_world(
     let trans = Transform::from_matrix(trans_mat);
 
     commands
-        .spawn_empty()
+        .spawn(Name::new("Root"))
         .insert(SpatialBundle {
             transform: trans,
             global_transform: GlobalTransform::from(trans),
@@ -90,11 +90,11 @@ fn process_milo_scene_events(
     let thread_pool = AsyncComputeTaskPool::get();
     let root_entity = root_query.single();
 
-    let start_idx = state.objects.len();
     let mut milos_updated = false;
 
     // TODO: Check if path ends in .milo
     for LoadMiloScene(milo_path) in scene_events_reader.iter() {
+        let start_idx = state.objects.len();
         log::debug!("Loading Scene: \"{}\"", milo_path);
 
         let ark = state.ark.as_ref().unwrap();
@@ -246,7 +246,8 @@ fn process_milo_scene_events(
                     let mat = map_matrix(band_placer.get_local_xfm());
 
                     let placer_entity = commands
-                        .spawn(SpatialBundle {
+                        .spawn(Name::new(band_placer.name.to_owned()))
+                        .insert(SpatialBundle {
                             transform: Transform::from_matrix(mat),
                             ..Default::default()
                         })
@@ -266,7 +267,7 @@ fn process_milo_scene_events(
                 },
                 Object::Cam(cam) => {
                     let cam_entity = commands
-                        .spawn_empty()
+                        .spawn(Name::new(cam.name.to_owned()))
                         .insert(Camera3dBundle {
                             camera: Camera {
                                 is_active: false,
@@ -274,7 +275,7 @@ fn process_milo_scene_events(
                             },
                             transform: Transform::from_matrix(
                                 map_matrix(cam.get_local_xfm())
-                            ).looking_at(Vec3::ZERO, Vec3::Z),
+                            ), //.looking_at(Vec3::ZERO, Vec3::Z),
                             projection: Projection::Perspective(
                                 PerspectiveProjection {
                                     fov: cam.y_fov,
@@ -303,7 +304,8 @@ fn process_milo_scene_events(
                     let mat = map_matrix(group.get_local_xfm());
 
                     let group_entity = commands
-                        .spawn(SpatialBundle {
+                        .spawn(Name::new(group.name.to_owned()))
+                        .insert(SpatialBundle {
                             transform: Transform::from_matrix(mat),
                             ..Default::default()
                         })
@@ -416,7 +418,8 @@ fn process_milo_scene_events(
 
                     // Add mesh
                     let mesh_entity = commands
-                        .spawn(PbrBundle {
+                        .spawn(Name::new(mesh.name.to_owned()))
+                        .insert(PbrBundle {
                             mesh: meshes.add(bevy_mesh),
                             material: mat_handle,
                             transform: Transform::from_matrix(mat),
@@ -443,7 +446,8 @@ fn process_milo_scene_events(
                     let mat = map_matrix(trans.get_local_xfm());
 
                     let trans_entity = commands
-                        .spawn(SpatialBundle {
+                        .spawn(Name::new(trans.name.to_owned()))
+                        .insert(SpatialBundle {
                             transform: Transform::from_matrix(mat),
                             ..Default::default()
                         })

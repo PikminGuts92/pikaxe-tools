@@ -7,7 +7,9 @@ use args::*;
 use bevy::{prelude::*, log::LogPlugin};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_infinite_grid::{GridShadowCamera, InfiniteGridBundle, InfiniteGrid, InfiniteGridPlugin};
+use pikaxe::scene::Object;
 use pikaxe_bevy::prelude::*;
+use std::collections::HashMap;
 
 const PROJECT_NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -47,10 +49,13 @@ fn main() {
         .add_plugins(InfiniteGridPlugin)
         .add_systems(Startup, init_milos)
         .add_systems(Startup, setup)
+        .add_systems(Update, fix_meta_proxy_cam)
         .add_systems(Update, control_camera)
+        //.add_systems(Update, active_camera_change)
         //.add_system(attach_free_cam)
         .add_systems(Update, load_default_character)
         .add_systems(Update, set_placer_as_char_parent)
+        .add_systems(Update, print_trans_hierarchy)
         .run();
 }
 
@@ -87,24 +92,31 @@ fn setup(
     camera.transform = Transform::from_xyz(-2.0, 2.5, 5.0)
         .looking_at(Vec3::ZERO, Vec3::Y);
 
-    commands.spawn(camera).insert(FlyCamera {
-        enabled: false,
-        sensitivity: 0.0,
-        ..Default::default()
-    }).insert(GridShadowCamera); // Fix camera
+    commands
+        .spawn(Name::new("Flycam 1"))
+        .insert(camera)
+        .insert(FlyCamera {
+            enabled: false,
+            sensitivity: 0.0,
+            ..Default::default()
+        })
+        .insert(GridShadowCamera); // Fix camera
 
     let mut camera = Camera3dBundle::default();
     camera.camera.is_active = false;
     camera.transform = Transform::from_xyz(-2.0, 2.5, 10.0)
         .looking_at(Vec3::ZERO, Vec3::Y);
 
-    commands.spawn(camera).insert(FlyCamera {
-        enabled: false,
-        //accel: 400.,
-        //max_speed: 5000.,
-        sensitivity: 0.0,
-        ..Default::default()
-    }); // Fix camera
+    commands
+        .spawn(Name::new("Flycam 2"))
+        .insert(camera)
+        .insert(FlyCamera {
+            enabled: false,
+            //accel: 400.,
+            //max_speed: 5000.,
+            sensitivity: 0.0,
+            ..Default::default()
+        }); // Fix camera
 
     // Infinite grid
     commands.spawn(InfiniteGridBundle {
@@ -121,7 +133,7 @@ fn setup(
 fn control_camera(
     key_input: Res<Input<KeyCode>>,
     mouse_input: Res<Input<MouseButton>>,
-    mut cam_query: Query<(&mut Camera, Option<&mut FlyCamera>)>,
+    mut cam_query: Query<(&mut Camera, Option<&mut FlyCamera>, Option<&Name>)>,
 ) {
     let key_down = is_camera_button_down(&key_input);
     let mouse_down = mouse_input.pressed(MouseButton::Left);
@@ -132,7 +144,7 @@ fn control_camera(
     let current_idx = cam_query
         .iter()
         .enumerate()
-        .find(|(_, (c, _))| c.is_active)
+        .find(|(_, (c, ..))| c.is_active)
         .map(|(i, _)| i)
         .unwrap_or_default();
 
@@ -142,8 +154,13 @@ fn control_camera(
         _ => current_idx
     };
 
-    for (i, (mut cam, fly_cam)) in cam_query.iter_mut().enumerate() {
+    for (i, (mut cam, fly_cam, name)) in cam_query.iter_mut().enumerate() {
+        let was_active = cam.is_active;
         cam.is_active = i == next_idx;
+
+        if was_active != cam.is_active {
+            log::debug!("Cam {} is now active", name.as_ref().map(|n| n.as_str()).unwrap_or("(unknown)"));
+        }
 
         if let Some(mut fly_cam) = fly_cam {
             // Disable camera move if mouse button not held
@@ -156,6 +173,16 @@ fn control_camera(
         }
     }
 }
+
+/*fn active_camera_change(
+   cam_query: Query<(&Camera, Option<&Name>), Changed<Camera>>,
+) {
+    for (cam, name) in cam_query.iter() {
+        if cam.is_active {
+            log::debug!("Cam {} is now active", name.as_ref().map(|n| n.as_str()).unwrap_or("(unknown)"));
+        }
+    }
+}*/
 
 fn is_camera_button_down(key_input: &Res<Input<KeyCode>>) -> bool {
     let control_keys = [
@@ -170,6 +197,67 @@ fn is_camera_button_down(key_input: &Res<Input<KeyCode>>) -> bool {
     control_keys
         .iter()
         .any(|k| key_input.pressed(*k))
+}
+
+fn fix_meta_proxy_cam(
+    mut cam_query: Query<(&mut Transform, &Name), (Added<Transform>, With<Camera>)>,
+) {
+    const CAM_NAME: &str = "meta.cam";
+
+    for (mut trans, name) in cam_query.iter_mut() {
+        if name.as_str() == CAM_NAME {
+            *trans = trans.looking_at(Vec3::ZERO, Vec3::Z);
+            log::error!("Patched transform in {CAM_NAME}");
+        }
+    }
+}
+
+fn print_trans_hierarchy(
+    key_input: Res<Input<KeyCode>>,
+    root_query: Query<Entity, With<MiloRoot>>,
+    milo_query: Query<With<MiloObject>>,
+    trans_query: Query<(Entity, Option<&Name>, Option<&Children>), With<Transform>>,
+) {
+    let show_hierarchy = key_input.any_just_released([KeyCode::H]);
+
+    if !show_hierarchy {
+        return;
+    }
+
+    let milo_count = milo_query.iter().count();
+    println!("Found {milo_count} milos");
+
+    let root_entity = root_query.single();
+    let trans_map = trans_query
+        .iter()
+        .map(|(e, n, c)| (e, (n, c)))
+        .collect::<HashMap<_, _>>();
+
+    print_children(&root_entity, &trans_map, 0);
+}
+
+fn print_children(
+    parent_entity: &Entity,
+    trans_map: &HashMap<Entity, (Option<&Name>, Option<&Children>)>,
+    index: usize,
+) {
+    let Some((parent_name, children)) = trans_map.get(parent_entity) else {
+        return;
+    };
+
+    println!(
+        "{}{}",
+        "  ".repeat(index),
+        parent_name.map(|pn| pn.as_str()).unwrap_or("(unknown)")
+    );
+
+    let Some(children) = children else {
+        return;
+    };
+
+    for child_entity in children.iter() {
+        print_children(child_entity, trans_map, index + 1);
+    }
 }
 
 /*fn attach_free_cam(
@@ -201,6 +289,7 @@ fn load_default_character(
 fn set_placer_as_char_parent(
     mut commands: Commands,
     //mut scene_events_reader: EventReader<LoadMiloSceneComplete>,
+    state: Res<MiloState>,
     char_objects_query: Query<(Entity, &MiloObject), (Added<MiloObject>, Without<SelectedCharacter>)>,
     placer_query: Query<Entity, With<MiloBandPlacer>>,
 ) {
@@ -208,7 +297,34 @@ fn set_placer_as_char_parent(
         return
     };
 
-    return;
+    /*if char_objects_query.is_empty() {
+        return
+    }
+
+    // TODO: Remove when Character entry can be parsed
+    let root_entity = root_query.single();
+    let mat = Mat4::IDENTITY;
+
+    let trans_entity = commands
+        .spawn(Name::new("alterna1"))
+        .insert(SpatialBundle {
+            transform: Transform::from_matrix(mat),
+            ..Default::default()
+        })
+        .insert(MiloObject {
+            id: (start_idx + i) as u32,
+            name: String::from("alterna1"),
+            dir: String::from("alterna1"),
+        })
+        .id();
+
+    commands
+        .entity(root_entity)
+        .add_child(trans_entity);
+
+    update_parents_events_writer.send(UpdateMiloObjectParents);*/
+
+    //return;
 
     for (entity, obj) in char_objects_query.iter() {
         if obj.dir.ne("alterna1") { // TODO: Do less hacky
@@ -219,8 +335,23 @@ fn set_placer_as_char_parent(
             .entity(entity)
             .insert(SelectedCharacter);
 
-        commands
-            .entity(placer_entity)
-            .add_child(entity);
+        let Some(obj) = state.objects.get(obj.id as usize) else {
+            continue;
+        };
+
+        let trans_parent = match obj {
+            Object::BandPlacer(obj) => &obj.parent,
+            Object::Cam(obj) => &obj.parent,
+            Object::Mesh(obj) => &obj.parent,
+            Object::Group(obj) => &obj.parent,
+            Object::Trans(obj) => &obj.parent,
+            _ => todo!("Shouldn't happen")
+        };
+
+        if trans_parent.is_empty() || trans_parent.eq("alterna1") {
+            commands
+                .entity(placer_entity)
+                .add_child(entity);
+        }
     }
 }
