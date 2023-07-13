@@ -10,7 +10,6 @@ use pikaxe::io::*;
 use pikaxe::scene::{Blend, Matrix, MiloObject as MObject, Object, ObjectDir, Trans, RndMesh, ZMode};
 use pikaxe::texture::Bitmap;
 use pikaxe::{Platform, SystemInfo};
-use std::num::NonZeroU8;
 use std::path::PathBuf;
 
 #[derive(Default)]
@@ -31,6 +30,7 @@ impl Plugin for MiloPlugin {
 
         app.add_event::<ClearMiloScene>();
         app.add_event::<LoadMiloScene>();
+        app.add_event::<LoadMiloSceneWithCommands>();
         app.add_event::<LoadMiloSceneComplete>();
         app.add_event::<UpdateMiloObjectParents>();
 
@@ -76,6 +76,7 @@ fn init_world(
 fn process_milo_scene_events(
     mut commands: Commands,
     mut scene_events_reader: EventReader<LoadMiloScene>,
+    mut scene_events_reader_commands: EventReader<LoadMiloSceneWithCommands>,
     mut state: ResMut<MiloState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -92,8 +93,16 @@ fn process_milo_scene_events(
 
     let mut milos_updated = false;
 
+    let scene_events = scene_events_reader
+        .iter()
+        .map(|LoadMiloScene(p)| (p, None))
+        .chain(scene_events_reader_commands
+            .iter()
+            .map(|LoadMiloSceneWithCommands(p, c)| (p, Some(c)))
+        );
+
     // TODO: Check if path ends in .milo
-    for LoadMiloScene(milo_path) in scene_events_reader.iter() {
+    for (milo_path, callback) in scene_events {
         let start_idx = state.objects.len();
         log::debug!("Loading Scene: \"{}\"", milo_path);
 
@@ -259,6 +268,11 @@ fn process_milo_scene_events(
                         .insert(MiloBandPlacer)
                         .id();
 
+                    if let Some(callback) = callback {
+                        let mut entity_command = commands.entity(placer_entity);
+                        callback(&mut entity_command);
+                    }
+
                     commands
                         .entity(root_entity)
                         .add_child(placer_entity);
@@ -294,6 +308,11 @@ fn process_milo_scene_events(
                         .insert(MiloCam)
                         .id();
 
+                    if let Some(callback) = callback {
+                        let mut entity_command = commands.entity(cam_entity);
+                        callback(&mut entity_command);
+                    }
+
                     commands
                         .entity(root_entity)
                         .add_child(cam_entity);
@@ -315,6 +334,11 @@ fn process_milo_scene_events(
                             dir: obj_dir_name.to_owned(),
                         })
                         .id();
+
+                    if let Some(callback) = callback {
+                        let mut entity_command = commands.entity(group_entity);
+                        callback(&mut entity_command);
+                    }
 
                     commands
                         .entity(root_entity)
@@ -436,6 +460,11 @@ fn process_milo_scene_events(
                         })
                         .id();
 
+                    if let Some(callback) = callback {
+                        let mut entity_command = commands.entity(mesh_entity);
+                        callback(&mut entity_command);
+                    }
+
                     commands
                         .entity(root_entity)
                         .add_child(mesh_entity);
@@ -457,6 +486,11 @@ fn process_milo_scene_events(
                             dir: obj_dir_name.to_owned(),
                         })
                         .id();
+
+                    if let Some(callback) = callback {
+                        let mut entity_command = commands.entity(trans_entity);
+                        callback(&mut entity_command);
+                    }
 
                     commands
                         .entity(root_entity)

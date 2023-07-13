@@ -278,11 +278,18 @@ fn print_children(
 }*/
 
 fn load_default_character(
-    mut scene_events_writer: EventWriter<LoadMiloScene>,
+    mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     placer_query: Query<Entity, Added<MiloBandPlacer>>,
 ) {
     if placer_query.get_single().is_ok() {
-        scene_events_writer.send(LoadMiloScene("char/alterna1/og/alterna1_ui.milo".into()));
+        scene_events_writer.send(
+            LoadMiloSceneWithCommands(
+                "char/alterna1/og/alterna1_ui.milo".into(),
+                |commands| {
+                    commands.insert(SelectedCharacter);
+                }
+            )
+        );
     }
 }
 
@@ -290,7 +297,7 @@ fn set_placer_as_char_parent(
     mut commands: Commands,
     //mut scene_events_reader: EventReader<LoadMiloSceneComplete>,
     state: Res<MiloState>,
-    char_objects_query: Query<(Entity, &MiloObject), (Added<MiloObject>, Without<SelectedCharacter>)>,
+    char_objects_query: Query<(Entity, &MiloObject), Added<SelectedCharacter>>,
     placer_query: Query<Entity, With<MiloBandPlacer>>,
 ) {
     let Ok(placer_entity) = placer_query.get_single() else {
@@ -327,13 +334,7 @@ fn set_placer_as_char_parent(
     //return;
 
     for (entity, obj) in char_objects_query.iter() {
-        if obj.dir.ne("alterna1") { // TODO: Do less hacky
-            continue;
-        }
-
-        commands
-            .entity(entity)
-            .insert(SelectedCharacter);
+        let obj_dir_name = obj.dir.as_str();
 
         let Some(obj) = state.objects.get(obj.id as usize) else {
             continue;
@@ -348,7 +349,8 @@ fn set_placer_as_char_parent(
             _ => todo!("Shouldn't happen")
         };
 
-        if trans_parent.is_empty() || trans_parent.eq("alterna1") {
+        // Add root-level trans objects to placer
+        if trans_parent.is_empty() || trans_parent.eq(obj_dir_name) {
             commands
                 .entity(placer_entity)
                 .add_child(entity);
