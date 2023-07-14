@@ -17,6 +17,12 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Component)]
 pub struct SelectedCharacter;
 
+#[derive(Default, Resource)]
+pub struct CharacterAnimations {
+    pub enter_clip: Option<Handle<AnimationClip>>,
+    pub loop_clip: Option<Handle<AnimationClip>>
+}
+
 fn main() {
     let args = CreatorArgs::init();
 
@@ -45,6 +51,7 @@ fn main() {
             default_outfit: args.default_outfit,
             ..Default::default()
         })
+        .insert_resource(CharacterAnimations::default())
         .add_plugins(FlyCameraPlugin)
         .add_plugins(InfiniteGridPlugin)
         .add_systems(Startup, init_milos)
@@ -125,7 +132,7 @@ fn setup(
             shadow_color: None, // No shadow
             ..InfiniteGrid::default()
         },
-        visibility: Visibility::Visible,
+        visibility: Visibility::Hidden,
         ..InfiniteGridBundle::default()
     });
 }
@@ -278,19 +285,54 @@ fn print_children(
 }*/
 
 fn load_default_character(
+    mut commands: Commands,
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
-    placer_query: Query<Entity, Added<MiloBandPlacer>>,
+    mut animations: ResMut<Assets<AnimationClip>>,
+    placer_query: Query<(Entity, &Name), Added<MiloBandPlacer>>,
 ) {
-    if placer_query.get_single().is_ok() {
-        scene_events_writer.send(
-            LoadMiloSceneWithCommands(
-                "char/alterna1/og/alterna1_ui.milo".into(),
-                |commands| {
-                    commands.insert(SelectedCharacter);
-                }
-            )
+    let Ok((placer_entity, placer_name)) = placer_query.get_single() else {
+        return
+    };
+
+    // Load character
+    scene_events_writer.send(
+        LoadMiloSceneWithCommands(
+            "char/alterna1/og/alterna1_ui.milo".into(),
+            //"char/grim/og/grim_ui.milo".into(),
+            |commands| {
+                commands.insert(SelectedCharacter);
+            }
+        )
+    );
+
+    // Setup animation on placer
+    let mut anim_player = AnimationPlayer::default();
+    let mut anim_clip = AnimationClip::default();
+
+    anim_clip
+        .add_curve_to_path(
+            EntityPath {
+                parts: vec![placer_name.to_owned()]
+            },
+            VariableCurve {
+                keyframe_timestamps: vec![0.0, 1.0, 2.0, 3.0, 4.0],
+                keyframes: Keyframes::Rotation(vec![
+                    Quat::IDENTITY,
+                    Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
+                    Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2. * 2.),
+                    Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2. * 3.),
+                    Quat::IDENTITY,
+                ])
+            }
         );
-    }
+
+    anim_player
+        .play(animations.add(anim_clip))
+        .repeat();
+
+    commands
+        .entity(placer_entity)
+        .insert(anim_player);
 }
 
 fn set_placer_as_char_parent(
