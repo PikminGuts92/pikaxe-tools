@@ -289,6 +289,7 @@ fn load_default_character(
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     mut animations: ResMut<Assets<AnimationClip>>,
     placer_query: Query<(Entity, &Name), Added<MiloBandPlacer>>,
+    state: Res<MiloState>,
 ) {
     let Ok((placer_entity, placer_name)) = placer_query.get_single() else {
         return
@@ -304,6 +305,24 @@ fn load_default_character(
             }
         )
     );
+
+    /*let Some((_info, anims_obj_dir)) = state.open_milo("char/alterna1/anims/alterna1_ui.milo") else {
+        return
+    };
+
+    let samples = anims_obj_dir
+        .get_entries()
+        .iter()
+        .filter_map(|e| match e {
+            Object::CharClipSamples(ccs) => Some(ccs),
+            _ => None
+        })
+        .collect::<Vec<_>>();
+
+    let loop_sample = samples
+        .iter()
+        .find(|ccs| ccs.name == "ui_loop")
+        .unwrap();*/
 
     // Setup animation on placer
     let mut anim_player = AnimationPlayer::default();

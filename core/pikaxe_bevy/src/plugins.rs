@@ -5,11 +5,10 @@ use bevy::render::texture::ImageSampler;
 use bevy::tasks::AsyncComputeTaskPool;
 use std::collections::{HashMap, HashSet};
 use futures_lite::future;
-use pikaxe::ark::{Ark, ArkOffsetEntry};
-use pikaxe::io::*;
+use pikaxe::ark::Ark;
 use pikaxe::scene::{Blend, Matrix, MiloObject as MObject, Object, ObjectDir, Trans, RndMesh, ZMode};
 use pikaxe::texture::Bitmap;
-use pikaxe::{Platform, SystemInfo};
+use pikaxe::Platform;
 use std::path::PathBuf;
 
 #[derive(Default)]
@@ -106,8 +105,7 @@ fn process_milo_scene_events(
         let start_idx = state.objects.len();
         log::debug!("Loading Scene: \"{}\"", milo_path);
 
-        let ark = state.ark.as_ref().unwrap();
-        let (sys_info, mut milo) = open_milo(ark, &milo_path).unwrap();
+        let (sys_info, mut milo) = state.open_milo(&milo_path).unwrap();
 
         let obj_dir_name = match &milo {
             ObjectDir::ObjectDir(dir) => &dir.name
@@ -656,51 +654,6 @@ fn process_milo_async_textures(
             log::info!("Loaded texture: {}", &async_tex.tex_name);
         }
     }
-}
-
-fn open_milo(ark: &Ark, milo_path: &str) -> Option<(SystemInfo, ObjectDir)> {
-    let entry = get_entry_from_path(ark, milo_path)?;
-
-    let data = ark.get_stream(entry.id).ok()?;
-
-    let mut stream = MemoryStream::from_slice_as_read(&data);
-    let milo = MiloArchive::from_stream(&mut stream).ok()?;
-
-    let milo_path = std::path::Path::new(&entry.path);
-    let system_info = SystemInfo::guess_system_info(&milo, &milo_path);
-
-    let mut obj_dir = milo.unpack_directory(&system_info).ok()?;
-    obj_dir.unpack_entries(&system_info).ok()?;
-
-    Some((system_info, obj_dir))
-}
-
-fn get_entry_from_path<'a>(ark: &'a Ark, path: &str) -> Option<&'a ArkOffsetEntry> {
-    let possible_paths = [
-        path.to_owned(),
-        get_path_with_gen_folder(path),
-    ];
-
-    /*for p in possible_paths.iter() {
-        log::debug!("{p}");
-    }*/
-
-    ark
-        .entries
-        .iter()
-        .filter(|e| possible_paths.iter().any(|p| e.path.starts_with(p)))
-        .next()
-}
-
-fn get_path_with_gen_folder(path: &str) -> String {
-    let slash_idx = path.rfind('/');
-
-    let Some(i) = slash_idx else {
-        return format!("gen/{path}");
-    };
-
-    let (s1, s2) = path.split_at(i);
-    format!("{s1}/gen{s2}")
 }
 
 pub fn map_matrix(m: &Matrix) -> Mat4 {
