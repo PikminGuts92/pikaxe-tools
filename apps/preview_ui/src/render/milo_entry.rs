@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use bevy::render::render_resource::{AddressMode, Extent3d, SamplerDescriptor, TextureDimension, TextureFormat};
-use bevy::render::texture::ImageSampler;
+use bevy::render::render_resource::{AddressMode, Extent3d, TextureDimension, TextureFormat};
+use bevy::render::texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 
 use itertools::*;
 use log::warn;
@@ -516,11 +516,11 @@ fn map_texture<'a>(tex: &'a (&'a Tex, Vec<u8>, ImageInfo)) -> Image {
     );
 
     // Update texture wrap mode
-    texture.sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor {
-        address_mode_u: AddressMode::Repeat,
-        address_mode_v: AddressMode::Repeat,
+    texture.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+        address_mode_u: ImageAddressMode::Repeat,
+        address_mode_v: ImageAddressMode::Repeat,
         anisotropy_clamp: 1, // 16
-        ..SamplerDescriptor::default()
+        ..ImageSamplerDescriptor::default()
     });
 
     // Set mipmap level

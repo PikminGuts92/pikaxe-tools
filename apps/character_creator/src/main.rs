@@ -6,7 +6,7 @@ mod args;
 use args::*;
 use bevy::{prelude::*, log::LogPlugin, pbr::wireframe::WireframePlugin};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
-use bevy_infinite_grid::{GridShadowCamera, InfiniteGridBundle, InfiniteGrid, InfiniteGridPlugin};
+use bevy_infinite_grid::{GridShadowCamera, InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
 use pikaxe::scene::Object;
 use pikaxe_bevy::prelude::*;
 use std::collections::HashMap;
@@ -135,10 +135,10 @@ fn setup(
 
     // Infinite grid
     commands.spawn(InfiniteGridBundle {
-        grid: InfiniteGrid {
+        settings: InfiniteGridSettings {
             fadeout_distance: 300.,
             shadow_color: None, // No shadow
-            ..InfiniteGrid::default()
+            ..InfiniteGridSettings::default()
         },
         visibility: Visibility::Hidden,
         ..InfiniteGridBundle::default()

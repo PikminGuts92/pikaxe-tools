@@ -136,8 +136,10 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
             ui.horizontal(|ui| {
                 if ui.add(
                     egui::ImageButton::new(
-                        icons::FA_GRID.texture_id(ctx),
-                        ICON_SIZE
+                        egui::load::SizedTexture::new(
+                            icons::FA_GRID.texture_id(ctx),
+                            ICON_SIZE
+                        )
                     ).selected(settings.show_gridlines))
                     .on_hover_text("Grid lines")
                     .clicked() {
@@ -147,10 +149,16 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
                     state.save_settings(&settings);
                 }
 
+                let ctx = *ctx;
+
+                let id = icons::FA_CIRCLE.texture_id(ctx);
+
                 if ui.add(
                     egui::ImageButton::new(
-                        icons::FA_CIRCLE.texture_id(ctx),
-                        ICON_SIZE
+                        egui::load::SizedTexture::new(
+                            icons::FA_CIRCLE.texture_id(ctx),
+                            ICON_SIZE
+                        )
                     ).selected(settings.show_wireframes))
                     .on_hover_text("Wireframe")
                     .clicked() {
@@ -163,22 +171,28 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
                 // TODO: Add to settings or something
                 ui.add(
                     egui::ImageButton::new(
-                        icons::FA_CUBES.texture_id(ctx),
-                        ICON_SIZE
+                        egui::load::SizedTexture::new(
+                            icons::FA_CUBES.texture_id(ctx),
+                            ICON_SIZE
+                        )
                     ))
                     .on_hover_text("Meshes");
 
                 ui.add(
                     egui::ImageButton::new(
-                        icons::FA_ARROWS_MULTI.texture_id(ctx),
-                        ICON_SIZE
+                        egui::load::SizedTexture::new(
+                            icons::FA_ARROWS_MULTI.texture_id(ctx),
+                            ICON_SIZE
+                        )
                     ))
                     .on_hover_text("Do Something");
 
                 ui.add(
                     egui::ImageButton::new(
-                        icons::FA_REFRESH.texture_id(ctx),
-                        ICON_SIZE
+                        egui::load::SizedTexture::new(
+                            icons::FA_REFRESH.texture_id(ctx),
+                            ICON_SIZE
+                        )
                     ))
                     .on_hover_text("Refresh");
             })

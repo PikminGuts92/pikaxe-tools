@@ -5,12 +5,11 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-bevy = { version = "0.11.3" }
+bevy = { version = "0.12.1" }
 #bevy_fly_camera = "0.10.0"
-bevy_fly_camera = { git = "https://github.com/zachbateman/bevy_fly_camera.git", branch = "bevy_0.11.0" }
-#bevy_infinite_grid = "0.7.0"
-#bevy_infinite_grid = { git = "https://github.com/PikminGuts92/bevy_infinite_grid.git", branch = "bevy-0.11" }
-bevy_infinite_grid = { path = "e:/REPOs-Community/bevy_infinite_grid" }
+bevy_fly_camera = { git = "https://github.com/clouds56-contrib/bevy_fly_camera.git", branch = "bevy" }
+#bevy_infinite_grid = "0.9.0"
+bevy_infinite_grid = { git = "https://github.com/ForesightMiningSoftwareCorporation/bevy_infinite_grid.git", rev = "5897bb6ad4b034c7b47b39b25d6fe04a1a48ea45" }
 clap = { workspace = true }
 pikaxe = { workspace = true }
 pikaxe_bevy = { path = "../../core/pikaxe_bevy" }

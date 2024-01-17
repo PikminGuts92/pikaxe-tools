@@ -2,8 +2,8 @@ use crate::prelude::*;
 use bevy::math::Vec3A;
 use bevy::prelude::*;
 use bevy::render::primitives::Sphere;
-use bevy::render::render_resource::{AddressMode, Extent3d, SamplerDescriptor, TextureDimension, TextureFormat};
-use bevy::render::texture::ImageSampler;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use bevy::render::texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::tasks::AsyncComputeTaskPool;
 use std::collections::{HashMap, HashSet};
 use futures_lite::future;
@@ -229,11 +229,11 @@ fn process_milo_scene_events(
                     );
 
                     // Update texture wrap mode
-                    texture.sampler_descriptor = ImageSampler::Descriptor(SamplerDescriptor {
-                        address_mode_u: AddressMode::Repeat,
-                        address_mode_v: AddressMode::Repeat,
+                    texture.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+                        address_mode_u: ImageAddressMode::Repeat,
+                        address_mode_v: ImageAddressMode::Repeat,
                         anisotropy_clamp: 1, // 16,
-                        ..SamplerDescriptor::default()
+                        ..ImageSamplerDescriptor::default()
                     });
 
                     // Set mipmap level

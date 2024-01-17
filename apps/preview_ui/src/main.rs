@@ -18,7 +18,7 @@ use settings::*;
 use bevy::{prelude::*, render::camera::PerspectiveProjection, window::{PresentMode, PrimaryWindow, WindowMode, WindowResized}, winit::WinitWindows};
 use bevy_egui::{EguiContext, EguiPlugin, egui, egui::{Color32, Context, Pos2, Ui}};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
-use bevy_infinite_grid::{GridShadowCamera, InfiniteGridBundle, InfiniteGrid, InfiniteGridPlugin};
+use bevy_infinite_grid::{GridShadowCamera, InfiniteGrid, InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
 use pikaxe::*;
 use pikaxe::ark::{Ark, ArkOffsetEntry};
 use pikaxe::scene::*;
@@ -160,10 +160,10 @@ fn setup(
 
     // Infinite grid
     commands.spawn(InfiniteGridBundle {
-        grid: InfiniteGrid {
+        settings: InfiniteGridSettings {
             fadeout_distance: 300.,
             shadow_color: None, // No shadow
-            ..InfiniteGrid::default()
+            ..InfiniteGridSettings::default()
         },
         visibility: if settings.show_gridlines {
             Visibility::Visible
