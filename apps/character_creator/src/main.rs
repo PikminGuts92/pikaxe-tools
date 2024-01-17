@@ -4,7 +4,7 @@
 mod args;
 
 use args::*;
-use bevy::{prelude::*, log::LogPlugin};
+use bevy::{prelude::*, log::LogPlugin, pbr::wireframe::WireframePlugin};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_infinite_grid::{GridShadowCamera, InfiniteGridBundle, InfiniteGrid, InfiniteGridPlugin};
 use pikaxe::scene::Object;
@@ -17,6 +17,12 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Component)]
 pub struct SelectedCharacter;
 
+/*#[derive(Component)]
+pub enum HelpText {
+    Character(String),
+
+}*/
+
 #[derive(Default, Resource)]
 pub struct CharacterAnimations {
     pub enter_clip: Option<Handle<AnimationClip>>,
@@ -27,19 +33,21 @@ fn main() {
     let args = CreatorArgs::init();
 
     App::new()
-        .add_plugins(DefaultPlugins
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: format!("Milo Character Creator v{}", VERSION),
+        .add_plugins((
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: format!("Milo Character Creator v{}", VERSION),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                })
+                .set(LogPlugin {
+                    filter: "wgpu=error,character_creator=debug,grim=debug,pikaxe_bevy=debug".into(),
                     ..Default::default()
                 }),
-                ..Default::default()
-            })
-            .set(LogPlugin {
-                filter: "wgpu=error,character_creator=debug,grim=debug,pikaxe_bevy=debug".into(),
-                ..Default::default()
-            })
-        )
+            WireframePlugin,
+        ))
         /*.add_plugin(bevy::pbr::wireframe::WireframePlugin)
         .insert_resource(bevy::pbr::wireframe::WireframeConfig {
             global: true
@@ -135,6 +143,23 @@ fn setup(
         visibility: Visibility::Hidden,
         ..InfiniteGridBundle::default()
     });
+
+    /*commands
+        .spawn(
+            TextBundle::from_section(
+                "Character: Judy Nails",
+                TextStyle::default())
+                .with_text_alignment(TextAlignment::Left)
+                .with_style(Style {
+                    position_type: PositionType::Relative,
+                    //left: Val::Px(5.),
+                    //top: Val::Percent(5.),
+                    ..Default::default()
+                }));*/
+
+    /*commands.spawn_batch([
+        HelpText()
+    ]);*/
 }
 
 fn control_camera(

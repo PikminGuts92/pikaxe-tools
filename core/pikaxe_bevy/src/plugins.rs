@@ -1,12 +1,14 @@
 use crate::prelude::*;
+use bevy::math::Vec3A;
 use bevy::prelude::*;
+use bevy::render::primitives::Sphere;
 use bevy::render::render_resource::{AddressMode, Extent3d, SamplerDescriptor, TextureDimension, TextureFormat};
 use bevy::render::texture::ImageSampler;
 use bevy::tasks::AsyncComputeTaskPool;
 use std::collections::{HashMap, HashSet};
 use futures_lite::future;
 use pikaxe::ark::Ark;
-use pikaxe::scene::{Blend, Matrix, MiloObject as MObject, Object, ObjectDir, Trans, RndMesh, ZMode};
+use pikaxe::scene::{Blend, Matrix, MiloObject as MObject, Object, ObjectDir, Sphere as MiloSphere, Trans, RndMesh, ZMode};
 use pikaxe::texture::Bitmap;
 use pikaxe::Platform;
 use std::path::PathBuf;
@@ -457,6 +459,46 @@ fn process_milo_scene_events(
                             faces: mesh.faces.len()
                         })
                         .id();
+
+                    if mesh.sphere.r > 0.0 {
+                        // Create sphere (TODO: Spawn from shared mesh)
+                        let MiloSphere { x, y, z, r } = &mesh.sphere;
+
+                        log::debug!("Adding sphere to {} with radius {}", &mesh.name, *r);
+
+                        let sphere_entity = commands
+                            .spawn(PbrBundle {
+                                mesh: meshes.add(Mesh::from(shape::UVSphere {
+                                    radius: *r,
+                                    ..Default::default()
+                                })),
+                                material: materials.add({
+                                    let mut mat: StandardMaterial = Color::rgb(0.9, 0.9, 0.9).into();
+
+                                    mat.unlit = true;
+
+                                    mat
+                                }),
+                                transform: Transform::from_xyz(*x, *y, *z),
+                                visibility: Visibility::Visible,
+                                ..Default::default()
+                            })
+                            .id();
+
+                        // Add sphere
+                        commands
+                            .entity(mesh_entity)
+                            .add_child({
+                                sphere_entity
+
+                                /*commands
+                                    .spawn(Sphere {
+                                        center: Vec3A::new(*x, *y, *z),
+                                        radius: *r,
+                                    })
+                                    .id()*/
+                            });
+                    }
 
                     if let Some(callback) = callback {
                         let mut entity_command = commands.entity(mesh_entity);
