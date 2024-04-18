@@ -5,4 +5,7 @@
     "rust-analyzer.inlayHints.typeHints.enable": false,
     "rust-analyzer.inlayHints.closingBraceHints.enable": false,
     "rust-analyzer.inlayHints.parameterHints.enable": false,
+    "rust-analyzer.checkOnSave.extraArgs": [
+        "--target-dir", ".rust-analyzer"
+    ]
 }
