@@ -4,9 +4,9 @@
 mod args;
 
 use args::*;
-use bevy::{prelude::*, log::LogPlugin, pbr::wireframe::WireframePlugin};
+use bevy::{log::LogPlugin, pbr::wireframe::WireframePlugin, prelude::*, utils::info};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
-use bevy_infinite_grid::{GridShadowCamera, InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
+use bevy_infinite_grid::{InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
 use pikaxe::scene::Object;
 use pikaxe_bevy::prelude::*;
 use std::collections::HashMap;
@@ -97,8 +97,8 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+        mesh: meshes.add(Cuboid::from_size(Vec3::splat(1.0))),
+        material: materials.add(Color::rgb(0.8, 0.7, 0.6)),
         transform: Transform::from_xyz(0.0, 0.5, 0.0),
         ..default()
     });
@@ -114,8 +114,7 @@ fn setup(
             enabled: false,
             sensitivity: 0.0,
             ..Default::default()
-        })
-        .insert(GridShadowCamera); // Fix camera
+        });
 
     let mut camera = Camera3dBundle::default();
     camera.camera.is_active = false;
@@ -137,7 +136,6 @@ fn setup(
     commands.spawn(InfiniteGridBundle {
         settings: InfiniteGridSettings {
             fadeout_distance: 300.,
-            shadow_color: None, // No shadow
             ..InfiniteGridSettings::default()
         },
         visibility: Visibility::Hidden,
@@ -163,15 +161,15 @@ fn setup(
 }
 
 fn control_camera(
-    key_input: Res<Input<KeyCode>>,
-    mouse_input: Res<Input<MouseButton>>,
+    key_input: Res<ButtonInput<KeyCode>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
     mut cam_query: Query<(&mut Camera, Option<&mut FlyCamera>, Option<&Name>)>,
 ) {
     let key_down = is_camera_button_down(&key_input);
     let mouse_down = mouse_input.pressed(MouseButton::Left);
 
     let count = cam_query.iter().count();
-    let cycle_cam = key_input.any_just_released([KeyCode::C]);
+    let cycle_cam = key_input.any_just_released([KeyCode::KeyC]);
 
     let current_idx = cam_query
         .iter()
@@ -216,12 +214,12 @@ fn control_camera(
     }
 }*/
 
-fn is_camera_button_down(key_input: &Res<Input<KeyCode>>) -> bool {
+fn is_camera_button_down(key_input: &Res<ButtonInput<KeyCode>>) -> bool {
     let control_keys = [
-        KeyCode::W,
-        KeyCode::A,
-        KeyCode::S,
-        KeyCode::D,
+        KeyCode::KeyW,
+        KeyCode::KeyA,
+        KeyCode::KeyS,
+        KeyCode::KeyD,
         KeyCode::Space,
         KeyCode::ShiftLeft,
     ];
@@ -245,12 +243,12 @@ fn fix_meta_proxy_cam(
 }
 
 fn print_trans_hierarchy(
-    key_input: Res<Input<KeyCode>>,
+    key_input: Res<ButtonInput<KeyCode>>,
     root_query: Query<Entity, With<MiloRoot>>,
-    milo_query: Query<With<MiloObject>>,
+    milo_query: Query<Entity, With<MiloObject>>,
     trans_query: Query<(Entity, Option<&Name>, Option<&Children>), With<Transform>>,
 ) {
-    let show_hierarchy = key_input.any_just_released([KeyCode::H]);
+    let show_hierarchy = key_input.any_just_released([KeyCode::KeyH]);
 
     if !show_hierarchy {
         return;
@@ -366,8 +364,9 @@ fn load_default_character(
                     Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2. * 2.),
                     Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2. * 3.),
                     Quat::IDENTITY,
-                ])
-            }
+                ]),
+                interpolation: Interpolation::Linear,
+            },
         );
 
     anim_player

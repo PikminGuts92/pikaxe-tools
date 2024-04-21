@@ -95,10 +95,10 @@ fn process_milo_scene_events(
     let mut milos_updated = false;
 
     let scene_events = scene_events_reader
-        .iter()
+        .read()
         .map(|LoadMiloScene(p)| (p, None))
         .chain(scene_events_reader_commands
-            .iter()
+            .read()
             .map(|LoadMiloSceneWithCommands(p, c)| (p, Some(c)))
         );
 
@@ -354,7 +354,7 @@ fn process_milo_scene_events(
 
                     let mat = map_matrix(mesh.get_local_xfm());
 
-                    let mut bevy_mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList);
+                    let mut bevy_mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList, bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD | bevy::render::render_asset::RenderAssetUsages::MAIN_WORLD);
 
                     let vert_count = mesh.get_vertices().len();
 
@@ -378,7 +378,7 @@ fn process_milo_scene_events(
                         mesh.faces.iter().flat_map(|f| *f).collect()
                     );
 
-                    bevy_mesh.set_indices(Some(indices));
+                    bevy_mesh.insert_indices(indices);
                     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
                     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
                     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_TANGENT, tangents);
@@ -567,9 +567,9 @@ fn update_milo_object_parents(
     state: Res<MiloState>,
     root_query: Query<Entity, With<MiloRoot>>,
     milo_objects_query: Query<(Entity, &MiloObject), With<Transform>>,
-    mut update_parents_events_reader: EventReader<UpdateMiloObjectParents>,
+    update_parents_events_reader: EventReader<UpdateMiloObjectParents>,
 ) {
-    if !update_parents_events_reader.iter().any(|_| true) {
+    if update_parents_events_reader.is_empty() {
         return;
     }
 
