@@ -41,8 +41,7 @@ impl Plugin for MiloPlugin {
 
         app.add_systems(Update, (
             process_milo_scene_events,
-            apply_deferred,
-            update_milo_object_parents
+            update_milo_object_parents.after(process_milo_scene_events)
         ).chain());
 
         app.add_systems(Update, process_milo_async_textures);

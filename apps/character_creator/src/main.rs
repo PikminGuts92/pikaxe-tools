@@ -69,7 +69,7 @@ fn main() {
         //.add_systems(Update, active_camera_change)
         //.add_system(attach_free_cam)
         .add_systems(Update, load_default_character)
-        .add_systems(Update, set_placer_as_char_parent)
+        .add_systems(PostUpdate, set_placer_as_char_parent)
         .add_systems(Update, print_trans_hierarchy)
         .run();
 }
@@ -382,19 +382,19 @@ fn set_placer_as_char_parent(
     mut commands: Commands,
     //mut scene_events_reader: EventReader<LoadMiloSceneComplete>,
     state: Res<MiloState>,
-    char_objects_query: Query<(Entity, &MiloObject), Added<SelectedCharacter>>,
+    char_objects_query: Query<(Entity, Option<&Parent>, &MiloObject), Added<SelectedCharacter>>,
     placer_query: Query<Entity, With<MiloBandPlacer>>,
 ) {
     let Ok(placer_entity) = placer_query.get_single() else {
         return
     };
 
-    /*if char_objects_query.is_empty() {
+    if char_objects_query.is_empty() {
         return
     }
 
     // TODO: Remove when Character entry can be parsed
-    let root_entity = root_query.single();
+    /*let root_entity = root_query.single();
     let mat = Mat4::IDENTITY;
 
     let trans_entity = commands
@@ -418,7 +418,9 @@ fn set_placer_as_char_parent(
 
     //return;
 
-    for (entity, obj) in char_objects_query.iter() {
+    info!("Updating parents for band placer");
+
+    for (entity, parent, obj) in char_objects_query.iter() {
         let obj_dir_name = obj.dir.as_str();
 
         let Some(obj) = state.objects.get(obj.id as usize) else {
@@ -436,9 +438,34 @@ fn set_placer_as_char_parent(
 
         // Add root-level trans objects to placer
         if trans_parent.is_empty() || trans_parent.eq(obj_dir_name) {
+            // Manually update old parent
+            /*if let Some(parent) = parent {
+                error!("Updating old parent");
+
+                commands
+                    .entity(parent.get())
+                    .remove_children(&[entity]);
+
+                commands
+                    .entity(entity)
+                    .remove_parent();
+
+                commands
+                    .entity(entity)
+                    .remove::<Parent>();
+            }*/
+
             commands
                 .entity(placer_entity)
                 .add_child(entity);
+
+            /*commands
+                .entity(entity)
+                .set_parent(placer_entity);*/
+
+            /*commands
+                .entity(entity)
+                .add(Parent:: Parent(placer_entity));*/
         }
     }
 }
