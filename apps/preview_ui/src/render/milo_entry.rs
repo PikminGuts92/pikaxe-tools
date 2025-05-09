@@ -340,6 +340,10 @@ fn get_product_local_mat<'a>(
 }
 
 fn get_texture<'a, 'b>(loader: &'b mut MiloLoader<'a>, tex_name: &str, system_info: &SystemInfo) -> Option<&'b (&'a Tex, Vec<u8>, ImageInfo)> {
+    if tex_name.is_empty() {
+        return None;
+    }
+
     // Check for cached texture
     if let Some(_cached) = loader.get_cached_texture(tex_name).take() {
         // TODO: Figure out why commented out line doesn't work (stupid lifetimes)
@@ -469,9 +473,15 @@ fn get_texture<'a, 'b>(loader: &'b mut MiloLoader<'a>, tex_name: &str, system_in
                 })))
         })
         .and_then(move |(rgba, image_info)| {
+            log::info!("Loaded texture: {tex_name}");
+
             // Cache decoded texture
             loader.set_cached_texture(tex_name, rgba, image_info);
             loader.get_cached_texture(tex_name)
+        })
+        .or_else(|| {
+            log::warn!("Unable to load texture: {tex_name}");
+            None
         })
 }
 

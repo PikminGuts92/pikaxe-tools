@@ -28,6 +28,16 @@ pub fn open_and_unpack_milo<T: AsRef<Path>>(milo_path: T) -> Result<(ObjectDir, 
 
     let system_info = SystemInfo::guess_system_info(&milo, &milo_path);
     let mut obj_dir = milo.unpack_directory(&system_info)?;
+
+    // Remove unsupported entries
+    #[allow(irrefutable_let_patterns)]
+    if let ObjectDir::ObjectDir(dir) = &mut obj_dir {
+        dir.entries.retain(|e| match e.get_type() {
+            "Group" | "Mat" | "Mesh" | "Tex" | "Trans" => true,
+            _ => false
+        });
+    }
+
     obj_dir.unpack_entries(&system_info)?;
 
     Ok((obj_dir, system_info))
