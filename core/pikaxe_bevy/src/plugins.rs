@@ -1,9 +1,8 @@
 use crate::prelude::*;
+use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::math::Vec3A;
 use bevy::prelude::*;
-use bevy::render::primitives::Sphere;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use bevy::render::texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::tasks::AsyncComputeTaskPool;
 use std::collections::{HashMap, HashSet};
 use futures_lite::future;
@@ -64,11 +63,11 @@ fn init_world(
 
     commands
         .spawn(Name::new("Root"))
-        .insert(SpatialBundle {
-            transform: trans,
-            global_transform: GlobalTransform::from(trans),
-            ..Default::default()
-        })
+        .insert((
+            trans,
+            GlobalTransform::from(trans), // TODO: Possibly remove
+            Visibility::Visible
+        ))
         .insert(MiloRoot);
 }
 
@@ -89,7 +88,7 @@ fn process_milo_scene_events(
     }*/
 
     let thread_pool = AsyncComputeTaskPool::get();
-    let root_entity = root_query.single();
+    let root_entity = root_query.single().unwrap(); // TODO: Handle safely
 
     let mut milos_updated = false;
 
@@ -255,10 +254,7 @@ fn process_milo_scene_events(
 
                     let placer_entity = commands
                         .spawn(Name::new(band_placer.name.to_owned()))
-                        .insert(SpatialBundle {
-                            transform: Transform::from_matrix(mat),
-                            ..Default::default()
-                        })
+                        .insert((Transform::from_matrix(mat), Visibility::Visible))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
                             name: band_placer.name.to_owned(),
@@ -281,15 +277,13 @@ fn process_milo_scene_events(
                 Object::Cam(cam) => {
                     let cam_entity = commands
                         .spawn(Name::new(cam.name.to_owned()))
-                        .insert(Camera3dBundle {
-                            camera: Camera {
+                        .insert((
+                            Camera3d::default(),
+                            Camera {
                                 is_active: false,
                                 ..Default::default()
                             },
-                            transform: Transform::from_matrix(
-                                map_matrix(cam.get_local_xfm())
-                            ), //.looking_at(Vec3::ZERO, Vec3::Z),
-                            projection: Projection::Perspective(
+                            Projection::Perspective(
                                 PerspectiveProjection {
                                     fov: cam.y_fov,
                                     aspect_ratio: 1.0,
@@ -297,8 +291,11 @@ fn process_milo_scene_events(
                                     far: cam.far_plane
                                 }
                             ),
-                            ..Default::default()
-                        })
+                            Transform::from_matrix(
+                                map_matrix(cam.get_local_xfm())
+                            ), //.looking_at(Vec3::ZERO, Vec3::Z),
+                            Visibility::Visible
+                        ))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
                             name: cam.name.to_owned(),
@@ -323,10 +320,7 @@ fn process_milo_scene_events(
 
                     let group_entity = commands
                         .spawn(Name::new(group.name.to_owned()))
-                        .insert(SpatialBundle {
-                            transform: Transform::from_matrix(mat),
-                            ..Default::default()
-                        })
+                        .insert((Transform::from_matrix(mat), Visibility::Visible))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
                             name: group.name.to_owned(),
@@ -392,7 +386,7 @@ fn process_milo_scene_events(
                                 (Blend::kBlendSrcAlpha, ZMode::kZModeDisable) => AlphaMode::Blend,
                                 _ => AlphaMode::Opaque
                             },
-                            base_color: Color::rgba(
+                            base_color: Color::srgba(
                                 mat.color.r,
                                 mat.color.g,
                                 mat.color.b,
@@ -416,7 +410,7 @@ fn process_milo_scene_events(
                             ..Default::default()
                         },
                         None => StandardMaterial {
-                            base_color: Color::rgb(0.3, 0.5, 0.3),
+                            base_color: Color::srgb(0.3, 0.5, 0.3),
                             double_sided: true,
                             unlit: false,
                             ..Default::default()
@@ -442,12 +436,12 @@ fn process_milo_scene_events(
                     // Add mesh
                     let mesh_entity = commands
                         .spawn(Name::new(mesh.name.to_owned()))
-                        .insert(PbrBundle {
-                            mesh: meshes.add(bevy_mesh),
-                            material: mat_handle,
-                            transform: Transform::from_matrix(mat),
-                            ..Default::default()
-                        })
+                        .insert((
+                            Mesh3d(meshes.add(bevy_mesh)),
+                            MeshMaterial3d(mat_handle),
+                            Transform::from_matrix(mat),
+                            Visibility::Visible
+                        ))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
                             name: mesh.name.to_owned(),
@@ -466,22 +460,18 @@ fn process_milo_scene_events(
                         log::debug!("Adding sphere to {} with radius {}", &mesh.name, *r);
 
                         let sphere_entity = commands
-                            .spawn(PbrBundle {
-                                mesh: meshes.add(Mesh::from(shape::UVSphere {
-                                    radius: *r,
-                                    ..Default::default()
-                                })),
-                                material: materials.add({
-                                    let mut mat: StandardMaterial = Color::rgb(0.9, 0.9, 0.9).into();
+                            .spawn((
+                                Mesh3d(meshes.add(Sphere::new(*r).mesh())),
+                                MeshMaterial3d(materials.add({
+                                    let mut mat: StandardMaterial = Color::srgb(0.9, 0.9, 0.9).into();
 
                                     mat.unlit = true;
 
                                     mat
-                                }),
-                                transform: Transform::from_xyz(*x, *y, *z),
-                                visibility: Visibility::Visible,
-                                ..Default::default()
-                            })
+                                })),
+                                Transform::from_xyz(*x, *y, *z),
+                                Visibility::Visible
+                            ))
                             .id();
 
                         // Add sphere
@@ -515,10 +505,7 @@ fn process_milo_scene_events(
 
                     let trans_entity = commands
                         .spawn(Name::new(trans.name.to_owned()))
-                        .insert(SpatialBundle {
-                            transform: Transform::from_matrix(mat),
-                            ..Default::default()
-                        })
+                        .insert((Transform::from_matrix(mat), Visibility::Visible))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
                             name: trans.name.to_owned(),
@@ -574,7 +561,7 @@ fn update_milo_object_parents(
 
     log::debug!("Updating parents!");
 
-    let root_entity = root_query.single();
+    let root_entity = root_query.single().unwrap(); // TODO: Handle better
 
     let obj_entities = milo_objects_query
         .iter()
@@ -659,7 +646,7 @@ fn update_milo_object_parents(
 
         commands
             .entity(entity)
-            .set_parent(new_parent_entity);
+            .insert(ChildOf(new_parent_entity));
     }
 }
 
@@ -731,7 +718,7 @@ fn image_new(
         "Pixel data, size and format have to match",
     );*/
     let mut image = Image {
-        data: pixel.to_owned(),
+        data: Some(pixel.to_owned()),
         ..Default::default()
     };
     image.texture_descriptor.dimension = dimension;
@@ -762,7 +749,8 @@ fn image_new_fill(
         "Fill data must fit within pixel buffer."
     );*/
 
-    for current_pixel in value.data.chunks_exact_mut(pixel.len()) {
+    // TODO: Refactor w/o unwrap
+    for current_pixel in value.data.as_mut().unwrap().chunks_exact_mut(pixel.len()) {
         current_pixel.copy_from_slice(pixel);
     }
     value

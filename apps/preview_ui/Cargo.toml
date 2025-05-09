@@ -5,13 +5,11 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-bevy = { version = "0.12.1", default-features = false, features = [ "bevy_core_pipeline", "bevy_pbr", "bevy_render", "bevy_winit", "multi-threaded", "x11" ] }
-bevy_egui = { version = "0.24.0", features = [ "immutable_ctx" ] }
-#bevy_fly_camera = "0.10.0"
-bevy_fly_camera = { git = "https://github.com/clouds56-contrib/bevy_fly_camera.git", branch = "bevy" }
-#bevy_infinite_grid = "0.12.0"
-bevy_infinite_grid = { git = "https://github.com/ForesightMiningSoftwareCorporation/bevy_infinite_grid.git", rev = "5897bb6ad4b034c7b47b39b25d6fe04a1a48ea45" }
-egui_extras = { version = "0.24.2", features = [ "svg" ] }
+bevy = { workspace = true }
+bevy_egui = { version = "0.34.1", features = [ "immutable_ctx" ] }
+bevy_fly_camera = { workspace = true }
+bevy_infinite_grid = { workspace = true }
+egui_extras = { version = "0.31.1", features = [ "svg" ] }
 font-awesome-as-a-crate = "0.3.0"
 itertools = { workspace = true }
 lazy_static = { workspace = true }

@@ -4,7 +4,7 @@
 mod args;
 
 use args::*;
-use bevy::{log::LogPlugin, pbr::wireframe::WireframePlugin, prelude::*, utils::info};
+use bevy::{animation::{animated_field, AnimationTargetId}, log::{info, LogPlugin}, pbr::wireframe::WireframePlugin, prelude::*};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_infinite_grid::{InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
 use pikaxe::scene::Object;
@@ -29,6 +29,9 @@ pub struct CharacterAnimations {
     pub loop_clip: Option<Handle<AnimationClip>>
 }
 
+#[derive(Default, Component)]
+pub struct CharacterAnimClip(Handle<AnimationClip>);
+
 fn main() {
     let args = CreatorArgs::init();
 
@@ -46,7 +49,7 @@ fn main() {
                     filter: "wgpu=error,character_creator=debug,grim=debug,pikaxe_bevy=debug".into(),
                     ..Default::default()
                 }),
-            WireframePlugin,
+            WireframePlugin::default(),
         ))
         /*.add_plugin(bevy::pbr::wireframe::WireframePlugin)
         .insert_resource(bevy::pbr::wireframe::WireframeConfig {
@@ -87,7 +90,7 @@ fn init_milos(
     ];
 
     for milo_path in default_files {
-        scene_events_writer.send(LoadMiloScene(milo_path.to_string()));
+        scene_events_writer.write(LoadMiloScene(milo_path.to_string()));
     }
 }
 
@@ -96,34 +99,35 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Cuboid::from_size(Vec3::splat(1.0))),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6)),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
-        ..default()
-    });
-
-    let mut camera = Camera3dBundle::default();
-    camera.transform = Transform::from_xyz(-2.0, 2.5, 5.0)
-        .looking_at(Vec3::ZERO, Vec3::Y);
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(1.0)))),
+        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.7, 0.6))),
+        Transform::from_xyz(0.0, 0.5, 0.0),
+    ));
 
     commands
         .spawn(Name::new("Flycam 1"))
-        .insert(camera)
+        .insert((
+            Camera3d::default(),
+            Camera::default(), // TODO: Maybe use 'target' instead of transform
+            Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y)
+        ))
         .insert(FlyCamera {
             enabled: false,
             sensitivity: 0.0,
             ..Default::default()
         });
 
-    let mut camera = Camera3dBundle::default();
-    camera.camera.is_active = false;
-    camera.transform = Transform::from_xyz(-2.0, 2.5, 10.0)
-        .looking_at(Vec3::ZERO, Vec3::Y);
-
     commands
         .spawn(Name::new("Flycam 2"))
-        .insert(camera)
+        .insert((
+            Camera3d::default(),
+            Camera {
+                is_active: false, // TODO: Maybe use 'target' instead of transform
+                ..Default::default()
+            }, 
+            Transform::from_xyz(-2.0, 2.5, 10.0).looking_at(Vec3::ZERO, Vec3::Y)
+        ))
         .insert(FlyCamera {
             enabled: false,
             //accel: 400.,
@@ -257,21 +261,21 @@ fn print_trans_hierarchy(
     let milo_count = milo_query.iter().count();
     println!("Found {milo_count} milos");
 
-    let root_entity = root_query.single();
+    let root_entity = root_query.single().unwrap(); // TODO: Better handle unwrap
     let trans_map = trans_query
         .iter()
         .map(|(e, n, c)| (e, (n, c)))
         .collect::<HashMap<_, _>>();
 
-    print_children(&root_entity, &trans_map, 0);
+    print_children(root_entity, &trans_map, 0);
 }
 
 fn print_children(
-    parent_entity: &Entity,
+    parent_entity: Entity,
     trans_map: &HashMap<Entity, (Option<&Name>, Option<&Children>)>,
     index: usize,
 ) {
-    let Some((parent_name, children)) = trans_map.get(parent_entity) else {
+    let Some((parent_name, children)) = trans_map.get(&parent_entity) else {
         return;
     };
 
@@ -311,15 +315,16 @@ fn load_default_character(
     mut commands: Commands,
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     mut animations: ResMut<Assets<AnimationClip>>,
+    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
     placer_query: Query<(Entity, &Name), Added<MiloBandPlacer>>,
     state: Res<MiloState>,
 ) {
-    let Ok((placer_entity, placer_name)) = placer_query.get_single() else {
+    let Ok((placer_entity, placer_name)) = placer_query.single() else {
         return
     };
 
     // Load character
-    scene_events_writer.send(
+    scene_events_writer.write(
         LoadMiloSceneWithCommands(
             "char/alterna1/og/alterna1_ui.milo".into(),
             //"char/grim/og/grim_ui.milo".into(),
@@ -351,12 +356,13 @@ fn load_default_character(
     let mut anim_player = AnimationPlayer::default();
     let mut anim_clip = AnimationClip::default();
 
+    // TODO: Get anim target id more directly?
+    let anim_target_id = AnimationTargetId::from_name(placer_name);
+
     anim_clip
-        .add_curve_to_path(
-            EntityPath {
-                parts: vec![placer_name.to_owned()]
-            },
-            VariableCurve {
+        .add_curve_to_target(
+            anim_target_id,
+            /*VariableCurve {
                 keyframe_timestamps: vec![0.0, 1.0, 2.0, 3.0, 4.0],
                 keyframes: Keyframes::Rotation(vec![
                     Quat::IDENTITY,
@@ -366,11 +372,27 @@ fn load_default_character(
                     Quat::IDENTITY,
                 ]),
                 interpolation: Interpolation::Linear,
-            },
+            },*/
+            AnimatableCurve::new(
+                animated_field!(Transform::rotation),
+                AnimatableKeyframeCurve::new([0.0, 1.0, 2.0, 3.0, 4.0].into_iter().zip([
+                    Quat::IDENTITY,
+                    Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
+                    Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2. * 2.),
+                    Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2. * 3.),
+                    Quat::IDENTITY,
+                ]))
+                .expect("Failed to build rotation curve")
+            )
         );
 
+    // TODO: Better keep track of anim clip
+    let anim_clip = animations.add(anim_clip);
+    let mut anim_graph = AnimationGraph::new();
+    let node_idx = anim_graph.add_clip(anim_clip, 1.0, anim_graph.root);
+
     anim_player
-        .play(animations.add(anim_clip))
+        .play(node_idx)
         .repeat();
 
     commands
@@ -382,10 +404,10 @@ fn set_placer_as_char_parent(
     mut commands: Commands,
     //mut scene_events_reader: EventReader<LoadMiloSceneComplete>,
     state: Res<MiloState>,
-    char_objects_query: Query<(Entity, Option<&Parent>, &MiloObject), Added<SelectedCharacter>>,
+    char_objects_query: Query<(Entity, Option<&ChildOf>, &MiloObject), Added<SelectedCharacter>>,
     placer_query: Query<Entity, With<MiloBandPlacer>>,
 ) {
-    let Ok(placer_entity) = placer_query.get_single() else {
+    let Ok(placer_entity) = placer_query.single() else {
         return
     };
 

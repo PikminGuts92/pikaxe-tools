@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::ecs::component::SparseStorage;
 use bevy::ecs::system::EntityCommands;
 use pikaxe::scene::Object;
 

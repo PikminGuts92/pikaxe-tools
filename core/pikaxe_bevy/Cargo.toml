@@ -5,7 +5,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-bevy = { version = "0.13.2", default-features = false, features = [ "bevy_pbr", "bevy_render", "multi-threaded" ] }
+bevy = { workspace = true }
 pikaxe = { workspace = true }
 futures-lite = { version = "2.3.0" }
 log = { workspace = true }

@@ -5,10 +5,9 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-bevy = { version = "0.13.2" }
-#bevy_fly_camera = "0.10.0"
-bevy_fly_camera = { git = "https://github.com/Cyannide/bevy_fly_camera.git", branch = "master" }
-bevy_infinite_grid = "0.12.0"
+bevy = { workspace = true }
+bevy_fly_camera = { workspace = true }
+bevy_infinite_grid = { workspace = true }
 clap = { workspace = true }
 pikaxe = { workspace = true }
 pikaxe_bevy = { path = "../../core/pikaxe_bevy" }
