@@ -8,7 +8,7 @@ resolver = "2" # Super duper important for bevy!
 [workspace.package]
 version = "0.1.0"
 authors = ["PikminGuts92"]
-edition = "2021"
+edition = "2024"
 
 [workspace.dependencies]
 bevy = { version = "0.16.0", features = ["bevy_dev_tools"] }
