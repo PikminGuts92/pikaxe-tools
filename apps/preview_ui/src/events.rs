@@ -7,6 +7,7 @@ pub enum AppEvent {
     SelectMiloEntry(Option<String>),
     ToggleGridLines(bool),
     ToggleWireframes(bool),
+    CreateNewWindow
 }
 
 #[derive(Event)]

@@ -15,7 +15,7 @@ use events::*;
 use gui::*;
 use render::{render_milo, render_milo_entry};
 use settings::*;
-use bevy::{prelude::*, render::camera::PerspectiveProjection, window::{PresentMode, PrimaryWindow, WindowMode, WindowResized}, winit::WinitWindows};
+use bevy::{prelude::*, render::camera::{PerspectiveProjection, RenderTarget}, window::{PresentMode, PrimaryWindow, WindowMode, WindowRef, WindowResized}, winit::WinitWindows};
 use bevy_egui::{EguiContext, EguiContextPass, EguiPlugin, egui, egui::{Color32, Context, Pos2, Ui}};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_infinite_grid::{InfiniteGrid, InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
@@ -59,15 +59,47 @@ fn main() {
         .run();
 }
 
-fn render_gui_system(mut settings: ResMut<AppSettings>, mut state: ResMut<AppState>, egui_ctx_query: Single<&mut EguiContext, With<PrimaryWindow>>, mut event_writer: EventWriter<AppEvent>) {
-    let egui_ctx = egui_ctx_query.into_inner();
+fn render_gui_system(
+    mut commands: Commands,
+    mut settings: ResMut<AppSettings>,
+    mut state: ResMut<AppState>,
+    egui_ctx_query: Query<(&mut EguiContext, &Window, Has<PrimaryWindow>)>,
+    mut event_writer: EventWriter<AppEvent>) {
+    for (egui_ctx, window, is_primary_window) in egui_ctx_query {
+        if is_primary_window {
+            render_gui(&mut egui_ctx.get(), &mut *settings, &mut *state);
+            render_gui_info(&mut egui_ctx.get(), &mut *state);
+        }
 
-    render_gui(&mut egui_ctx.get(), &mut *settings, &mut *state);
-    render_gui_info(&mut egui_ctx.get(), &mut *state);
+        render_lower_icons(&mut egui_ctx.get(), &mut *settings, &mut *state);
 
-    state.consume_events(|ev| {
-        event_writer.write(ev);
-    });
+        state.consume_events(|ev| {
+            // TODO: Handle in another system
+            if let AppEvent::CreateNewWindow = ev {
+                let new_window = commands
+                    .spawn(window.clone())
+                    .id();
+
+                let _camera = commands.spawn((
+                    Camera {
+                        target: RenderTarget::Window(WindowRef::Entity(new_window)),
+                        ..Default::default()
+                    },
+                    Camera3d::default(),
+                    Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+                    Msaa::Sample4
+                )).insert(FlyCamera {
+                    enabled: false,
+                    sensitivity: 0.0,
+                    ..Default::default()
+                });
+
+                return;
+            }
+
+            event_writer.write(ev);
+        });
+    }
 }
 
 fn detect_meshes(
@@ -299,6 +331,9 @@ fn consume_app_events(
 
                 debug!("Updated milo");
             },*/
+            _ => {
+                // Do nothing
+            }
         }
     }
 }
@@ -404,25 +439,37 @@ fn create_ark_tree(ark: &Ark) -> ArkDirNode {
 fn control_camera(
     key_input: Res<ButtonInput<KeyCode>>,
     mouse_input: Res<ButtonInput<MouseButton>>,
-    egui_ctx_query: Single<&mut EguiContext, With<PrimaryWindow>>,
-    mut cam_query: Query<&mut FlyCamera>,
+    mut egui_ctx_query: Query<(Entity, &mut EguiContext, &Window, Has<PrimaryWindow>)>,
+    mut cam_query: Query<(&Camera, &mut FlyCamera)>,
 ) {
-    let mut egui_ctx = egui_ctx_query.into_inner();
+    let Some((window_entity, mut egui_ctx, window, is_primary)) = egui_ctx_query.iter_mut().find(|(_, _, w, _)| w.focused) else {
+        return;
+    };
+
+    // egui_ctx_query: Query<(&mut EguiContext, &Window, Has<PrimaryWindow>)>,
     let ctx = egui_ctx.get_mut();
 
     let key_down = is_camera_button_down(&key_input);
     let mouse_down = mouse_input.pressed(MouseButton::Left);
 
-    for mut cam in cam_query.iter_mut() {
+    for (cam, mut fly_cam) in cam_query.iter_mut() {
+        let is_focused = window.focused;
+        let cam_matches_window = match (is_primary, &cam.target) {
+            (true, RenderTarget::Window(WindowRef::Primary)) => true,
+            (false, RenderTarget::Window(WindowRef::Entity(en))) if en.eq(&window_entity) => true,
+            _ => false
+        };
+
         // Disable camera move if mouse button not held
-        cam.sensitivity = match mouse_down {
+        fly_cam.sensitivity = match mouse_down {
             true => 3.0,
             _ => 0.0
         };
 
-        cam.enabled = !ctx.wants_pointer_input()
+        fly_cam.enabled = !ctx.wants_pointer_input()
             && !ctx.is_pointer_over_area()
-            && (key_down || mouse_down);
+            && (key_down || mouse_down)
+            && (cam_matches_window && is_focused);
     }
 }
 

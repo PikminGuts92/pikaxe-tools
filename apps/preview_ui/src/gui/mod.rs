@@ -280,6 +280,33 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
     }
 }
 
+pub fn render_lower_icons(ctx: &mut &Context, _settings: &mut AppSettings, state: &mut AppState) {
+    egui::Window::new("Hotbar_2")
+        .title_bar(false)
+        .resizable(false)
+        .collapsible(false)
+        .anchor(egui::Align2::RIGHT_BOTTOM, [0., 24.])
+        .auto_sized()
+        //.fixed_size([12., 12.])
+        .show(ctx, |ui| {
+            const ICON_SIZE: egui::Vec2 = egui::Vec2::splat(12.);
+
+            ui.horizontal(|ui| {
+                if ui.add(
+                    egui::ImageButton::new(
+                        egui::load::SizedTexture::new(
+                            icons::FA_PLUS.texture_id(ctx),
+                            ICON_SIZE
+                        )
+                    ))
+                    .on_hover_text("New Window")
+                    .clicked() {
+                    state.add_event(AppEvent::CreateNewWindow);
+                }
+            })
+        });
+}
+
 pub fn render_gui_info(ctx: &mut &Context, state: &mut AppState) {
     //egui::Label::new("vert_face_count")
 

@@ -58,3 +58,8 @@ pub static FA_CIRCLE: LazyLock<RetainedImage> = LazyLock::new(|| egui_extras::Re
     "fa_circle",
     fa::svg(fa::Type::Regular, "circle").unwrap()
 ).unwrap());
+
+pub static FA_PLUS: LazyLock<RetainedImage> = LazyLock::new(|| egui_extras::RetainedImage::from_svg_str(
+    "fa_plus",
+    fa::svg(fa::Type::Solid, "plus").unwrap()
+).unwrap());
