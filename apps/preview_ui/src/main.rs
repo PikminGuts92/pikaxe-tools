@@ -372,7 +372,7 @@ fn open_file(
                     }
                 }*/
 
-                app_event_writer.send(AppEvent::SelectMiloEntry(selected_entry));
+                app_event_writer.write(AppEvent::SelectMiloEntry(selected_entry));
             },
             Err(err) => {
                 warn!("Unable to unpack milo file:\n\t: {:?}", err);

@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy::ecs::system::EntityCommands;
-use pikaxe::scene::Object;
 
 #[derive(Event)]
 pub struct ClearMiloScene;

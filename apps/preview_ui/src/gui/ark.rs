@@ -12,7 +12,7 @@ pub fn draw_ark_tree(state: &mut AppState, ctx: &mut &Context, ui: &mut Ui) {
 
 fn draw_node(node: &ArkDirNode, entries: &Vec<ArkOffsetEntry>, ctx: &mut &Context, ui: &mut Ui) {
     egui::CollapsingHeader::new(&node.name)
-        .id_source(format!("dir_{}", &node.path))
+        .id_salt(format!("dir_{}", &node.path))
         .default_open(false)
         .show(ui, |ui| {
             for child in &node.dirs {

@@ -11,7 +11,7 @@ use pikaxe::scene::Object;
 use pikaxe_bevy::prelude::*;
 use std::collections::HashMap;
 
-const PROJECT_NAME: &str = env!("CARGO_PKG_NAME");
+const _PROJECT_NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Component)]
@@ -28,9 +28,6 @@ pub struct CharacterAnimations {
     pub enter_clip: Option<Handle<AnimationClip>>,
     pub loop_clip: Option<Handle<AnimationClip>>
 }
-
-#[derive(Default, Component)]
-pub struct CharacterAnimClip(Handle<AnimationClip>);
 
 fn main() {
     let args = CreatorArgs::init();
@@ -315,9 +312,9 @@ fn load_default_character(
     mut commands: Commands,
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     mut animations: ResMut<Assets<AnimationClip>>,
-    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
+    _animation_graphs: ResMut<Assets<AnimationGraph>>,
     placer_query: Query<(Entity, &Name), Added<MiloBandPlacer>>,
-    state: Res<MiloState>,
+    _state: Res<MiloState>,
 ) {
     let Ok((placer_entity, placer_name)) = placer_query.single() else {
         return
@@ -442,7 +439,7 @@ fn set_placer_as_char_parent(
 
     info!("Updating parents for band placer");
 
-    for (entity, parent, obj) in char_objects_query.iter() {
+    for (entity, _parent, obj) in char_objects_query.iter() {
         let obj_dir_name = obj.dir.as_str();
 
         let Some(obj) = state.objects.get(obj.id as usize) else {

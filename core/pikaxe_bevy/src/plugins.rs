@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
-use bevy::math::Vec3A;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::AsyncComputeTaskPool;
@@ -540,11 +539,11 @@ fn process_milo_scene_events(
 
         milos_updated = true;
         state.objects.append(milo.get_entries_mut());
-        scene_events_writer.send(LoadMiloSceneComplete(milo_path.to_owned()));
+        scene_events_writer.write(LoadMiloSceneComplete(milo_path.to_owned()));
     }
 
     if milos_updated {
-        update_parents_events_writer.send(UpdateMiloObjectParents);
+        update_parents_events_writer.write(UpdateMiloObjectParents);
     }
 }
 

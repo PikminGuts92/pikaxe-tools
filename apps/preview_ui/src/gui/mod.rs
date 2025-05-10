@@ -151,8 +151,6 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
 
                 let ctx = *ctx;
 
-                let id = icons::FA_CIRCLE.texture_id(ctx);
-
                 if ui.add(
                     egui::ImageButton::new(
                         egui::load::SizedTexture::new(
