@@ -12,7 +12,6 @@ bevy_infinite_grid = { workspace = true }
 egui_extras = { version = "0.31.1", features = [ "svg" ] }
 font-awesome-as-a-crate = "0.3.0"
 itertools = { workspace = true }
-lazy_static = { workspace = true }
 log = { workspace = true }
 # native-dialog = "0.6.1"
 pikaxe = { workspace = true }

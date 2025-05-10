@@ -4488,7 +4488,6 @@ dependencies = [
  "egui_extras",
  "font-awesome-as-a-crate",
  "itertools 0.12.1",
- "lazy_static",
  "log",
  "pikaxe",
  "serde",
