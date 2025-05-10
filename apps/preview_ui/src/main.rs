@@ -15,7 +15,7 @@ use events::*;
 use gui::*;
 use render::{render_milo, render_milo_entry};
 use settings::*;
-use bevy::{prelude::*, render::camera::{PerspectiveProjection, RenderTarget}, window::{PresentMode, PrimaryWindow, WindowMode, WindowRef, WindowResized}, winit::WinitWindows};
+use bevy::{ecs::world::OnDespawn, prelude::*, render::camera::{PerspectiveProjection, RenderTarget}, window::{PresentMode, PrimaryWindow, WindowClosed, WindowMode, WindowRef, WindowResized}, winit::WinitWindows};
 use bevy_egui::{EguiContext, EguiContextPass, EguiPlugin, egui, egui::{Color32, Context, Pos2, Ui}};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_infinite_grid::{InfiniteGrid, InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
@@ -52,6 +52,7 @@ fn main() {
         .add_systems(Update, control_camera)
         .add_systems(Update, drop_files)
         .add_systems(Update, window_resized)
+        .add_observer(window_closed)
         .add_systems(Update, consume_file_events)
         .add_systems(Update, consume_app_events)
         .add_systems(Startup, setup_args)
@@ -65,6 +66,8 @@ fn render_gui_system(
     mut state: ResMut<AppState>,
     egui_ctx_query: Query<(&mut EguiContext, &Window, Has<PrimaryWindow>)>,
     mut event_writer: EventWriter<AppEvent>) {
+    let window_count = egui_ctx_query.iter().count();
+
     for (egui_ctx, window, is_primary_window) in egui_ctx_query {
         if is_primary_window {
             render_gui(&mut egui_ctx.get(), &mut *settings, &mut *state);
@@ -77,7 +80,10 @@ fn render_gui_system(
             // TODO: Handle in another system
             if let AppEvent::CreateNewWindow = ev {
                 let new_window = commands
-                    .spawn(window.clone())
+                    .spawn(Window {
+                        title: format!("Window #{}", window_count + 1),
+                        ..window.clone()
+                    })
                     .id();
 
                 let _camera = commands.spawn((
@@ -522,6 +528,18 @@ fn window_resized(
         settings.window_width = e.width;
         settings.window_height = e.height;
         app_state.save_settings(&settings);
+    }
+}
+
+fn window_closed(
+    _trigger: Trigger<OnDespawn, PrimaryWindow>,
+    other_windows_query: Query<(), (With<Window>, Without<PrimaryWindow>)>,
+    mut bevy_event_writer: EventWriter<bevy::app::AppExit>,
+) {
+    let other_windows_open = other_windows_query.iter().any(|_| true);
+    if other_windows_open {
+        info!("Primary window closed!");
+        bevy_event_writer.write(bevy::app::AppExit::Success);
     }
 }
 
