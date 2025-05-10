@@ -21,20 +21,23 @@ impl Plugin for GrimPlugin {
         #[cfg(not(target_family = "wasm"))] let app_settings = load_settings(&app_state.settings_path);
 
         app
-            .add_plugins(DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: format!("Preview v{}", VERSION),
-                    resolution: WindowResolution::new(
-                        app_settings.window_width,
-                        app_settings.window_height
-                    ),
-                    mode: WindowMode::Windowed,
-                    present_mode: PresentMode::Fifo, // vsync
-                    resizable: true,
+            .add_plugins((
+                DefaultPlugins.set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: format!("Preview v{}", VERSION),
+                        resolution: WindowResolution::new(
+                            app_settings.window_width,
+                            app_settings.window_height
+                        ),
+                        mode: WindowMode::Windowed,
+                        present_mode: PresentMode::Fifo, // vsync
+                        resizable: true,
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 }),
-                ..Default::default()
-            }))
+                bevy::pbr::wireframe::WireframePlugin::default(),
+            ))
             .insert_resource(bevy::pbr::wireframe::WireframeConfig {
                 global: app_settings.show_wireframes,
                 ..Default::default()
