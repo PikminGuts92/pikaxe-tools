@@ -127,7 +127,7 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
         .title_bar(false)
         .resizable(false)
         .collapsible(false)
-        .anchor(egui::Align2::CENTER_TOP, [0., 10.])
+        .anchor(egui::Align2::CENTER_TOP, [0., 24.])
         .auto_sized()
         //.fixed_size([12., 12.])
         .show(ctx, |ui| {
@@ -287,7 +287,7 @@ pub fn render_gui_info(ctx: &mut &Context, state: &mut AppState) {
     let face_count = state.face_count;
 
     egui::Area::new("vert_face_count".into())
-        .anchor(egui::Align2::RIGHT_TOP, [-10., 10.])
+        .anchor(egui::Align2::RIGHT_TOP, [-10., 24.])
         .interactable(false)
         .movable(false)
         .show(ctx, |ui| {
