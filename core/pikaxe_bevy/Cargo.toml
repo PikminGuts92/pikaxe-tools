@@ -7,5 +7,5 @@ edition.workspace = true
 [dependencies]
 bevy = { workspace = true }
 pikaxe = { workspace = true }
-futures-lite = { version = "2.3.0" }
+futures-lite = { version = "2.6.0" }
 log = { workspace = true }
