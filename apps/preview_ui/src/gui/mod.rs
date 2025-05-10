@@ -288,7 +288,7 @@ pub fn render_gui_info(ctx: &mut &Context, state: &mut AppState) {
     let vert_count = state.vert_count;
     let face_count = state.face_count;
 
-    egui::Area::new("vert_face_count")
+    egui::Area::new("vert_face_count".into())
         .anchor(egui::Align2::RIGHT_TOP, [-10., 10.])
         .interactable(false)
         .movable(false)

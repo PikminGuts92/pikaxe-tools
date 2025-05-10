@@ -1,6 +1,7 @@
 mod loader;
 mod milo_entry;
 
+use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
@@ -118,6 +119,7 @@ pub fn render_milo(
                         TextureDimension::D2,
                         &rgba[..tex_size],
                         TextureFormat::Rgba8UnormSrgb,
+                        RenderAssetUsages::default()
                     );
 
                     tex_map.insert(tex.get_name().as_str(), bevy_tex);
@@ -137,7 +139,7 @@ pub fn render_milo(
             continue;
         }
 
-        let mut bevy_mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList);
+        let mut bevy_mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList, RenderAssetUsages::default());
 
         let mut positions = Vec::new();
         let mut normals = Vec::new();
@@ -159,7 +161,7 @@ pub fn render_milo(
             mesh.faces.iter().flat_map(|f| *f).collect()
         );
 
-        bevy_mesh.set_indices(Some(indices));
+        bevy_mesh.insert_indices(indices);
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_TANGENT, tangents);
@@ -195,7 +197,7 @@ pub fn render_milo(
 
         let bevy_mat = match mat {
             Some(mat) => StandardMaterial {
-                base_color: Color::rgba(
+                base_color: Color::srgba(
                     mat.color.r,
                     mat.color.g,
                     mat.color.b,
@@ -222,7 +224,7 @@ pub fn render_milo(
                 ..Default::default()
             },
             None => StandardMaterial {
-                base_color: Color::rgb(0.3, 0.5, 0.3),
+                base_color: Color::srgb(0.3, 0.5, 0.3),
                 double_sided: true,
                 unlit: false,
                 ..Default::default()
@@ -230,14 +232,13 @@ pub fn render_milo(
         };
 
         // Add mesh
-        commands.spawn(PbrBundle {
-            mesh: bevy_meshes.add(bevy_mesh),
-            material: materials.add(bevy_mat),
-            transform: Transform::from_matrix(base_matrix)
+        commands.spawn((
+            Mesh3d(bevy_meshes.add(bevy_mesh)),
+            MeshMaterial3d(materials.add(bevy_mat)),
+            Transform::from_matrix(base_matrix)
                 * Transform::from_matrix(matrix)
                 * Transform::from_scale(Vec3::new(0.1, 0.1, 0.1)),
-            ..Default::default()
-        });
+        ));
 
         debug!("Added {}", &mesh.name);
     }

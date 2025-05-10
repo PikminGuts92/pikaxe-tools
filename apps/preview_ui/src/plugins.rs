@@ -8,39 +8,7 @@ const SETTINGS_FILE_NAME: &str = "settings.json";
 const PROJECT_NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-struct MinimalPlugins;
-
 pub struct GrimPlugin;
-
-// Using until bevy_fly_camera is updated
-// https://github.com/mcpar-land/bevy_fly_camera/pull/19
-impl PluginGroup for MinimalPlugins {
-    fn build(self) -> PluginGroupBuilder {
-        // Reference: https://github.com/bevyengine/bevy/blob/main/crates/bevy_internal/src/default_plugins.rs
-        PluginGroupBuilder::start::<Self>()
-            // Basic stuff
-            .add(bevy::log::LogPlugin::default())
-            .add(bevy::core::TaskPoolPlugin::default())
-            .add(bevy::core::TypeRegistrationPlugin::default())
-            .add(bevy::core::FrameCountPlugin::default())
-            .add(bevy::time::TimePlugin::default())
-            .add(bevy::transform::TransformPlugin::default())
-            .add(bevy::hierarchy::HierarchyPlugin::default())
-            .add(bevy::diagnostic::DiagnosticsPlugin::default())
-            .add(bevy::input::InputPlugin::default())
-            .add(bevy::window::WindowPlugin::default())
-            .add(bevy::a11y::AccessibilityPlugin)
-            // Optional features being used
-            .add(bevy::asset::AssetPlugin::default())
-            .add(bevy::scene::ScenePlugin::default())
-            .add(bevy::winit::WinitPlugin::default())
-            .add(bevy::render::RenderPlugin::default())
-            .add(bevy::render::texture::ImagePlugin::default())
-            .add(bevy::core_pipeline::CorePipelinePlugin::default())
-            .add(bevy::pbr::PbrPlugin::default())
-            .add(bevy::pbr::wireframe::WireframePlugin)
-    }
-}
 
 impl Plugin for GrimPlugin {
     fn build(&self, app: &mut App) {
@@ -53,8 +21,7 @@ impl Plugin for GrimPlugin {
         #[cfg(not(target_family = "wasm"))] let app_settings = load_settings(&app_state.settings_path);
 
         app
-            //.add_plugins(DefaultPlugins);
-            .add_plugins(MinimalPlugins.set(WindowPlugin {
+            .add_plugins(DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: format!("Preview v{}", VERSION),
                     resolution: WindowResolution::new(

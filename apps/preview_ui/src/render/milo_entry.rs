@@ -1,7 +1,7 @@
+use bevy::asset::RenderAssetUsages;
+use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::prelude::*;
 use bevy::render::render_resource::{AddressMode, Extent3d, TextureDimension, TextureFormat};
-use bevy::render::texture::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
-
 use itertools::*;
 use log::warn;
 
@@ -71,7 +71,7 @@ pub fn render_milo_entry(
     let root_entity = commands.spawn_empty()
         .insert(trans)
         .insert(global_trans)
-        .insert(VisibilityBundle::default())
+        .insert(Visibility::Visible)
         .id();
 
     for mesh in meshes {
@@ -83,7 +83,7 @@ pub fn render_milo_entry(
         // Get transform
         let mat = get_computed_mat(mesh as &dyn Trans, &mut loader);
 
-        let mut bevy_mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList);
+        let mut bevy_mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList, RenderAssetUsages::default());
 
         let vert_count = mesh.get_vertices().len();
 
@@ -107,7 +107,7 @@ pub fn render_milo_entry(
             mesh.faces.iter().flat_map(|f| *f).collect()
         );
 
-        bevy_mesh.set_indices(Some(indices));
+        bevy_mesh.insert_indices(indices);
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_TANGENT, tangents);
@@ -137,7 +137,7 @@ pub fn render_milo_entry(
 
         let bevy_mat = match loader.get_mat(&mesh.mat) {
             Some(mat) => StandardMaterial {
-                base_color: Color::rgba(
+                base_color: Color::srgba(
                     mat.color.r,
                     mat.color.g,
                     mat.color.b,
@@ -161,7 +161,7 @@ pub fn render_milo_entry(
                 ..Default::default()
             },
             None => StandardMaterial {
-                base_color: Color::rgb(0.3, 0.5, 0.3),
+                base_color: Color::srgb(0.3, 0.5, 0.3),
                 double_sided: true,
                 unlit: false,
                 ..Default::default()
@@ -171,12 +171,11 @@ pub fn render_milo_entry(
         // Add mesh
         commands.entity(root_entity)
             .with_children(|parent| {
-                parent.spawn(PbrBundle {
-                    mesh: bevy_meshes.add(bevy_mesh),
-                    material: materials.add(bevy_mat),
-                    transform: Transform::from_matrix(mat),
-                    ..Default::default()
-                }).insert(WorldMesh {
+                parent.spawn((
+                    Mesh3d(bevy_meshes.add(bevy_mesh)),
+                    MeshMaterial3d(materials.add(bevy_mat)),
+                    Transform::from_matrix(mat),
+                )).insert(WorldMesh {
                     name: mesh.name.to_owned(),
                     vert_count: mesh.vertices.len(),
                     face_count: mesh.faces.len()
@@ -547,7 +546,7 @@ fn image_new(
         "Pixel data, size and format have to match",
     );*/
     let mut image = Image {
-        data: pixel.to_owned(),
+        data: Some(pixel.to_owned()),
         ..Default::default()
     };
     image.texture_descriptor.dimension = dimension;
@@ -578,7 +577,7 @@ fn image_new_fill(
         "Fill data must fit within pixel buffer."
     );*/
 
-    for current_pixel in value.data.chunks_exact_mut(pixel.len()) {
+    for current_pixel in value.data.as_mut().unwrap().chunks_exact_mut(pixel.len()) {
         current_pixel.copy_from_slice(pixel);
     }
     value
