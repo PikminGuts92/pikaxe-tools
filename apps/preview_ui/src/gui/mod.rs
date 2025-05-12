@@ -4,12 +4,39 @@ mod milo;
 mod toolbar;
 
 use ark::*;
-use bevy_egui::{EguiContext, EguiPlugin, egui, egui::{Color32, Context, Pos2, Ui}};
+use bevy::ecs::component::Component;
+use bevy_egui::{EguiContext, EguiPlugin, egui, egui::{Color32, Context, Pos2, TextureHandle, Ui, Vec2}};
 use milo::*;
+use std::sync::LazyLock;
 use super::{AppSettings, AppState, ArkDirNode, AppEvent};
 use toolbar::*;
 
-pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut AppState) {
+const ICON_SIZE: Vec2 = Vec2::splat(12.);
+
+#[derive(Component)]
+pub struct GuiIcons {
+    pub grid: TextureHandle,
+    pub circle: TextureHandle,
+    pub cube: TextureHandle,
+    pub arrows_multi: TextureHandle,
+    pub refresh: TextureHandle,
+    pub plus: TextureHandle,
+}
+
+impl GuiIcons {
+    pub fn new(ctx: &Context) -> Self {
+        Self {
+            grid: ctx.load_texture("fa_grid", icons::FA_GRID.clone(), Default::default()),
+            circle: ctx.load_texture("fa_circle", icons::FA_CIRCLE.clone(), Default::default()),
+            cube: ctx.load_texture("fa_cubes", icons::FA_CUBES.clone(), Default::default()),
+            arrows_multi: ctx.load_texture("fa_arrows_multi", icons::FA_ARROWS_MULTI.clone(), Default::default()),
+            refresh: ctx.load_texture("fa_refresh", icons::FA_REFRESH.clone(), Default::default()),
+            plus: ctx.load_texture("fa_plus", icons::FA_PLUS.clone(), Default::default()),
+        }
+    }
+}
+
+pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut AppState, icons: &GuiIcons) {
     // Top Toolbar
     render_toolbar(ctx, settings, state);
 
@@ -131,13 +158,11 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
         .auto_sized()
         //.fixed_size([12., 12.])
         .show(ctx, |ui| {
-            const ICON_SIZE: egui::Vec2 = egui::Vec2::splat(12.);
-
             ui.horizontal(|ui| {
                 if ui.add(
                     egui::ImageButton::new(
                         egui::load::SizedTexture::new(
-                            icons::FA_GRID.texture_id(ctx),
+                            icons.grid.id(),
                             ICON_SIZE
                         )
                     ).selected(settings.show_gridlines))
@@ -149,12 +174,10 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
                     state.save_settings(&settings);
                 }
 
-                let ctx = *ctx;
-
                 if ui.add(
                     egui::ImageButton::new(
                         egui::load::SizedTexture::new(
-                            icons::FA_CIRCLE.texture_id(ctx),
+                            icons.circle.id(),
                             ICON_SIZE
                         )
                     ).selected(settings.show_wireframes))
@@ -170,7 +193,7 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
                 ui.add(
                     egui::ImageButton::new(
                         egui::load::SizedTexture::new(
-                            icons::FA_CUBES.texture_id(ctx),
+                            icons.cube.id(),
                             ICON_SIZE
                         )
                     ))
@@ -179,7 +202,7 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
                 ui.add(
                     egui::ImageButton::new(
                         egui::load::SizedTexture::new(
-                            icons::FA_ARROWS_MULTI.texture_id(ctx),
+                            icons.arrows_multi.id(),
                             ICON_SIZE
                         )
                     ))
@@ -188,7 +211,7 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
                 ui.add(
                     egui::ImageButton::new(
                         egui::load::SizedTexture::new(
-                            icons::FA_REFRESH.texture_id(ctx),
+                            icons.refresh.id(),
                             ICON_SIZE
                         )
                     ))
@@ -280,7 +303,7 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
     }
 }
 
-pub fn render_lower_icons(ctx: &mut &Context, _settings: &mut AppSettings, state: &mut AppState) {
+pub fn render_lower_icons(ctx: &mut &Context, _settings: &mut AppSettings, state: &mut AppState, icons: &GuiIcons) {
     egui::Window::new("Hotbar_2")
         .title_bar(false)
         .resizable(false)
@@ -289,13 +312,11 @@ pub fn render_lower_icons(ctx: &mut &Context, _settings: &mut AppSettings, state
         .auto_sized()
         //.fixed_size([12., 12.])
         .show(ctx, |ui| {
-            const ICON_SIZE: egui::Vec2 = egui::Vec2::splat(12.);
-
             ui.horizontal(|ui| {
                 if ui.add(
                     egui::ImageButton::new(
                         egui::load::SizedTexture::new(
-                            icons::FA_PLUS.texture_id(ctx),
+                            icons.plus.id(),
                             ICON_SIZE
                         )
                     ))
