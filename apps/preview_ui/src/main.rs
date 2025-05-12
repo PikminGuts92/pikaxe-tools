@@ -48,6 +48,7 @@ fn main() {
         .add_plugins(FlyCameraPlugin)
         .add_plugins(InfiniteGridPlugin)
         .add_systems(EguiContextPass, render_gui_system)
+        //.add_observer(window_closed)
         .add_systems(Update, detect_meshes)
         .add_systems(Update, control_camera)
         .add_systems(Update, drop_files)
@@ -60,6 +61,15 @@ fn main() {
         .run();
 }
 
+/*fn load_gui_icons<'a>(
+    mut commands: Commands,
+    egui_ctx_query: Query<(Entity, &'a mut EguiContext), (Added<EguiContext>, Without<GuiIcons<'a>>)>,
+) {
+    for (entity, mut context) in egui_ctx_query {
+        //context.get().load_texture(name, image, options)
+    }
+}*/
+
 fn render_gui_system(
     mut commands: Commands,
     mut settings: ResMut<AppSettings>,
@@ -68,13 +78,15 @@ fn render_gui_system(
     mut event_writer: EventWriter<AppEvent>) {
     let window_count = egui_ctx_query.iter().count();
 
-    for (egui_ctx, window, is_primary_window) in egui_ctx_query {
+    for (i, (egui_ctx, window, is_primary_window)) in egui_ctx_query.into_iter().enumerate() {
         if is_primary_window {
             render_gui(&mut egui_ctx.get(), &mut *settings, &mut *state);
             render_gui_info(&mut egui_ctx.get(), &mut *state);
         }
 
-        render_lower_icons(&mut egui_ctx.get(), &mut *settings, &mut *state);
+        render_lower_icons(&mut egui_ctx.get(), &mut *settings, &mut *state, i);
+
+        //egui_ctx.get_mut().lo
 
         state.consume_events(|ev| {
             // TODO: Handle in another system

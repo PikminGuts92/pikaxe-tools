@@ -4,10 +4,26 @@ mod milo;
 mod toolbar;
 
 use ark::*;
-use bevy_egui::{EguiContext, EguiPlugin, egui, egui::{Color32, Context, Pos2, Ui}};
+use bevy::ecs::component::Component;
+use bevy_egui::{EguiContext, EguiPlugin, egui, egui::{Color32, Context, Image, Pos2, TextureHandle, Ui, Vec2}};
 use milo::*;
+//use std::cell::LazyCell;
+use std::sync::LazyLock;
 use super::{AppSettings, AppState, ArkDirNode, AppEvent};
 use toolbar::*;
+
+const ICON_SIZE: Vec2 = Vec2::splat(12.);
+
+#[derive(Component)]
+pub struct GuiIcons<'a> {
+    pub grid: Image<'a>,
+    pub circle: Image<'a>,
+    pub cube: Image<'a>,
+    pub arrows_multi: Image<'a>,
+    pub refresh: Image<'a>,
+    pub plus: Image<'a>,
+    pub search: Image<'a>,
+}
 
 pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut AppState) {
     // Top Toolbar
@@ -131,15 +147,10 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
         .auto_sized()
         //.fixed_size([12., 12.])
         .show(ctx, |ui| {
-            const ICON_SIZE: egui::Vec2 = egui::Vec2::splat(12.);
-
             ui.horizontal(|ui| {
                 if ui.add(
                     egui::ImageButton::new(
-                        egui::load::SizedTexture::new(
-                            icons::FA_GRID.texture_id(ctx),
-                            ICON_SIZE
-                        )
+                        icons::FA_GRID.clone()
                     ).selected(settings.show_gridlines))
                     .on_hover_text("Grid lines")
                     .clicked() {
@@ -149,14 +160,9 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
                     state.save_settings(&settings);
                 }
 
-                let ctx = *ctx;
-
                 if ui.add(
                     egui::ImageButton::new(
-                        egui::load::SizedTexture::new(
-                            icons::FA_CIRCLE.texture_id(ctx),
-                            ICON_SIZE
-                        )
+                        icons::FA_CIRCLE.clone()
                     ).selected(settings.show_wireframes))
                     .on_hover_text("Wireframe")
                     .clicked() {
@@ -169,28 +175,19 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
                 // TODO: Add to settings or something
                 ui.add(
                     egui::ImageButton::new(
-                        egui::load::SizedTexture::new(
-                            icons::FA_CUBES.texture_id(ctx),
-                            ICON_SIZE
-                        )
+                        icons::FA_CUBES.clone()
                     ))
                     .on_hover_text("Meshes");
 
                 ui.add(
                     egui::ImageButton::new(
-                        egui::load::SizedTexture::new(
-                            icons::FA_ARROWS_MULTI.texture_id(ctx),
-                            ICON_SIZE
-                        )
+                        icons::FA_ARROWS_MULTI.clone()
                     ))
                     .on_hover_text("Do Something");
 
                 ui.add(
                     egui::ImageButton::new(
-                        egui::load::SizedTexture::new(
-                            icons::FA_REFRESH.texture_id(ctx),
-                            ICON_SIZE
-                        )
+                        icons::FA_REFRESH.clone()
                     ))
                     .on_hover_text("Refresh");
             })
@@ -280,7 +277,7 @@ pub fn render_gui(ctx: &mut &Context, settings: &mut AppSettings, state: &mut Ap
     }
 }
 
-pub fn render_lower_icons(ctx: &mut &Context, _settings: &mut AppSettings, state: &mut AppState) {
+pub fn render_lower_icons(ctx: &mut &Context, _settings: &mut AppSettings, state: &mut AppState, index: usize) {
     egui::Window::new("Hotbar_2")
         .title_bar(false)
         .resizable(false)
@@ -294,10 +291,10 @@ pub fn render_lower_icons(ctx: &mut &Context, _settings: &mut AppSettings, state
             ui.horizontal(|ui| {
                 if ui.add(
                     egui::ImageButton::new(
-                        egui::load::SizedTexture::new(
-                            icons::FA_PLUS.texture_id(ctx),
-                            ICON_SIZE
-                        )
+                        match index {
+                            0 => icons::FA_PLUS.clone(),
+                            _ => icons::FA_SEARCH.clone()
+                        },
                     ))
                     .on_hover_text("New Window")
                     .clicked() {
