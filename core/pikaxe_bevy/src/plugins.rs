@@ -39,7 +39,7 @@ impl Plugin for MiloPlugin {
 
         app.add_systems(Update, (
             process_milo_scene_events,
-            update_milo_object_parents.after(process_milo_scene_events)
+            update_milo_object_parents
         ).chain());
 
         app.add_systems(Update, process_milo_async_textures);
@@ -65,7 +65,7 @@ fn init_world(
         .insert((
             trans,
             GlobalTransform::from(trans), // TODO: Possibly remove
-            Visibility::Visible
+            Visibility::Inherited
         ))
         .insert(MiloRoot);
 }
@@ -253,7 +253,7 @@ fn process_milo_scene_events(
 
                     let placer_entity = commands
                         .spawn(Name::new(band_placer.name.to_owned()))
-                        .insert((Transform::from_matrix(mat), Visibility::Visible))
+                        .insert((Transform::from_matrix(mat), Visibility::Inherited))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
                             name: band_placer.name.to_owned(),
@@ -293,7 +293,7 @@ fn process_milo_scene_events(
                             Transform::from_matrix(
                                 map_matrix(cam.get_local_xfm())
                             ), //.looking_at(Vec3::ZERO, Vec3::Z),
-                            Visibility::Visible
+                            Visibility::Inherited
                         ))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
@@ -319,7 +319,7 @@ fn process_milo_scene_events(
 
                     let group_entity = commands
                         .spawn(Name::new(group.name.to_owned()))
-                        .insert((Transform::from_matrix(mat), Visibility::Visible))
+                        .insert((Transform::from_matrix(mat), Visibility::Inherited))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
                             name: group.name.to_owned(),
@@ -439,7 +439,7 @@ fn process_milo_scene_events(
                             Mesh3d(meshes.add(bevy_mesh)),
                             MeshMaterial3d(mat_handle),
                             Transform::from_matrix(mat),
-                            Visibility::Visible
+                            Visibility::Inherited
                         ))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
@@ -452,7 +452,7 @@ fn process_milo_scene_events(
                         })
                         .id();
 
-                    if mesh.sphere.r > 0.0 {
+                    if mesh.sphere.r > 0.0 && false {
                         // Create sphere (TODO: Spawn from shared mesh)
                         let MiloSphere { x, y, z, r } = &mesh.sphere;
 
@@ -469,7 +469,7 @@ fn process_milo_scene_events(
                                     mat
                                 })),
                                 Transform::from_xyz(*x, *y, *z),
-                                Visibility::Visible
+                                Visibility::Inherited
                             ))
                             .id();
 
@@ -504,7 +504,7 @@ fn process_milo_scene_events(
 
                     let trans_entity = commands
                         .spawn(Name::new(trans.name.to_owned()))
-                        .insert((Transform::from_matrix(mat), Visibility::Visible))
+                        .insert((Transform::from_matrix(mat), Visibility::Inherited))
                         .insert(MiloObject {
                             id: (start_idx + i) as u32,
                             name: trans.name.to_owned(),
@@ -551,7 +551,7 @@ fn update_milo_object_parents(
     mut commands: Commands,
     state: Res<MiloState>,
     root_query: Query<Entity, With<MiloRoot>>,
-    milo_objects_query: Query<(Entity, &MiloObject), With<Transform>>,
+    milo_objects_query: Query<(Entity, &MiloObject, Has<ParentOverride>), With<Transform>>,
     update_parents_events_reader: EventReader<UpdateMiloObjectParents>,
 ) {
     if update_parents_events_reader.is_empty() {
@@ -564,7 +564,7 @@ fn update_milo_object_parents(
 
     let obj_entities = milo_objects_query
         .iter()
-        .map(|(en, mo)| (en, &state.objects[mo.id as usize]))
+        .map(|(en, mo, hpo)| (en, &state.objects[mo.id as usize], hpo))
         .collect::<Vec<_>>();
 
     /*let (entity_map, children_map) = obj_entities
@@ -600,7 +600,7 @@ fn update_milo_object_parents(
 
     let (entity_map, parent_map) = obj_entities
         .iter()
-        .fold((HashMap::new(), HashMap::new()), |(mut entity_acc, mut parent_acc), (en, obj)| {
+        .fold((HashMap::new(), HashMap::new()), |(mut entity_acc, mut parent_acc), (en, obj, _)| {
             entity_acc.insert(obj.get_name(), en.clone());
 
             let trans_parent = match obj {
@@ -621,7 +621,11 @@ fn update_milo_object_parents(
             (entity_acc, parent_acc)
         });
 
-    for (entity, obj) in obj_entities {
+    for (entity, obj, parent_override) in obj_entities {
+        if parent_override {
+            continue;
+        }
+
         // Clear parent
         /*commands
             .entity(entity)

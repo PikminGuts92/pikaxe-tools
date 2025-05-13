@@ -4,7 +4,7 @@
 mod args;
 
 use args::*;
-use bevy::{animation::{animated_field, AnimationTargetId}, log::{info, LogPlugin}, pbr::wireframe::WireframePlugin, prelude::*};
+use bevy::{animation::{animated_field, AnimationTarget, AnimationTargetId}, log::{info, LogPlugin}, pbr::wireframe::WireframePlugin, prelude::*};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_infinite_grid::{InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
 use pikaxe::scene::Object;
@@ -312,7 +312,7 @@ fn load_default_character(
     mut commands: Commands,
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     mut animations: ResMut<Assets<AnimationClip>>,
-    _animation_graphs: ResMut<Assets<AnimationGraph>>,
+    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
     placer_query: Query<(Entity, &Name), Added<MiloBandPlacer>>,
     _state: Res<MiloState>,
 ) {
@@ -384,9 +384,11 @@ fn load_default_character(
         );
 
     // TODO: Better keep track of anim clip
-    let anim_clip = animations.add(anim_clip);
-    let mut anim_graph = AnimationGraph::new();
-    let node_idx = anim_graph.add_clip(anim_clip, 1.0, anim_graph.root);
+    //let anim_clip = animations.add(anim_clip);
+    //let mut anim_graph = AnimationGraph::new();
+    //let node_idx = anim_graph.add_clip(anim_clip, 1.0, anim_graph.root);
+    let (anim_graph, node_idx) = AnimationGraph::from_clip(animations.add(anim_clip));
+
 
     anim_player
         .play(node_idx)
@@ -394,7 +396,14 @@ fn load_default_character(
 
     commands
         .entity(placer_entity)
-        .insert(anim_player);
+        .insert((
+            anim_player,
+            AnimationTarget {
+                id: anim_target_id,
+                player: placer_entity,
+            },
+            AnimationGraphHandle(animation_graphs.add(anim_graph))
+        ));
 }
 
 fn set_placer_as_char_parent(
@@ -474,9 +483,15 @@ fn set_placer_as_char_parent(
                     .remove::<Parent>();
             }*/
 
+            log::debug!("Adding {} to placer entity", obj.get_name());
+
             commands
                 .entity(placer_entity)
                 .add_child(entity);
+
+            commands
+                .entity(entity)
+                .insert(ParentOverride);
 
             /*commands
                 .entity(entity)

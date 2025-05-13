@@ -25,6 +25,9 @@ pub struct MiloObject {
 }
 
 #[derive(Component)]
+pub struct ParentOverride;
+
+#[derive(Component)]
 pub struct MiloMesh {
     pub verts: usize,
     pub faces: usize,
