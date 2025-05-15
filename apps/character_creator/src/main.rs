@@ -314,11 +314,14 @@ fn load_default_character(
     mut animations: ResMut<Assets<AnimationClip>>,
     mut animation_graphs: ResMut<Assets<AnimationGraph>>,
     placer_query: Query<(Entity, &Name), Added<MiloBandPlacer>>,
+    root_query: Single<Entity, With<MiloRoot>>,
     _state: Res<MiloState>,
 ) {
     let Ok((placer_entity, placer_name)) = placer_query.single() else {
         return
     };
+
+    let root_entity = root_query.into_inner();
 
     // Load character
     scene_events_writer.write(
@@ -389,19 +392,21 @@ fn load_default_character(
     //let node_idx = anim_graph.add_clip(anim_clip, 1.0, anim_graph.root);
     let (anim_graph, node_idx) = AnimationGraph::from_clip(animations.add(anim_clip));
 
-
     anim_player
         .play(node_idx)
         .repeat();
 
     commands
         .entity(placer_entity)
+        .insert(AnimationTarget {
+            id: anim_target_id,
+            player: root_entity,
+        });
+
+    commands
+        .entity(root_entity)
         .insert((
             anim_player,
-            AnimationTarget {
-                id: anim_target_id,
-                player: placer_entity,
-            },
             AnimationGraphHandle(animation_graphs.add(anim_graph))
         ));
 }
