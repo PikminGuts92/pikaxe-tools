@@ -43,6 +43,9 @@ pub struct MiloCam;
 pub struct MiloCharHair;
 
 #[derive(Component)]
+pub struct MiloCharClip(pub Handle<AnimationClip>);
+
+#[derive(Component)]
 pub struct MiloGroup {
     pub objects: Vec<u32>,
 }

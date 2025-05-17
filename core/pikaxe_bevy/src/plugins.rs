@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use bevy::animation::{animated_field, AnimationTargetId};
 use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -78,6 +79,7 @@ fn process_milo_scene_events(
     mut state: ResMut<MiloState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut animations: ResMut<Assets<AnimationClip>>,
     mut scene_events_writer: EventWriter<LoadMiloSceneComplete>,
     mut update_parents_events_writer: EventWriter<UpdateMiloObjectParents>,
     root_query: Query<Entity, With<MiloRoot>>,
@@ -313,6 +315,108 @@ fn process_milo_scene_events(
                         .add_child(cam_entity);
 
                     log::info!("Loaded cam: {}", cam.get_name());
+                },
+                Object::CharClipSamples(ccs) => {
+                    let mut anim_clip = AnimationClip::default();
+
+                    let one_samples = ccs.one.decode_samples(&sys_info);
+                    let full_samples = ccs.full.decode_samples(&sys_info);
+
+                    let sample_count = ccs.one.get_sample_count().max(ccs.full.get_sample_count());
+
+                    for sample in one_samples.into_iter().chain(full_samples) {
+                        let bone_name = format!("{}.mesh", &sample.symbol);
+                        let anim_target_id = AnimationTargetId::from_name(&bone_name.into());
+
+                        if let Some((_, pos)) = sample.pos.as_ref() {
+                            anim_clip
+                                .add_curve_to_target(
+                                    anim_target_id,
+                                    AnimatableCurve::new(
+                                        animated_field!(Transform::translation),
+                                        AnimatableKeyframeCurve::new(pos
+                                            .iter()
+                                            .cycle()
+                                            .take(sample_count)
+                                            .enumerate()
+                                            .map(|(i, p)| (i as f32, Vec3::new(p.x, p.y, p.z))))
+                                        .expect("Failed to build translation curve")
+                                    )
+                                );
+                        }
+
+                        if let Some((_, quat)) = sample.quat.as_ref() {
+                            anim_clip
+                                .add_curve_to_target(
+                                    anim_target_id,
+                                    AnimatableCurve::new(
+                                        animated_field!(Transform::rotation),
+                                        AnimatableKeyframeCurve::new(quat
+                                            .iter()
+                                            .cycle()
+                                            .take(sample_count)
+                                            .enumerate()
+                                            .map(|(i, q)| (i as f32, Quat::from_xyzw(q.x, q.y, q.z, q.w))))
+                                        .expect("Failed to build rotation curve")
+                                    )
+                                );
+                        }
+
+                        // TODO: Combine rotx, roty, rotz samples
+                        // Need to group one + full samples by target to accomplish
+                        if let Some((_, rotz)) = sample.rotz.as_ref() {
+                            anim_clip
+                                .add_curve_to_target(
+                                    anim_target_id,
+                                    AnimatableCurve::new(
+                                        animated_field!(Transform::rotation),
+                                        AnimatableKeyframeCurve::new(rotz
+                                            .iter()
+                                            .cycle()
+                                            .take(sample_count)
+                                            .enumerate()
+                                            .map(|(i, rz)| (i as f32, Quat::from_rotation_z(*rz * (std::f32::consts::PI / 180.0)))))
+                                        .expect("Failed to build fragmented rotation curve (from x, y, z components")
+                                    )
+                                );
+                        }
+
+                        if let Some((_, scale)) = sample.scale.as_ref() {
+                            anim_clip
+                                .add_curve_to_target(
+                                    anim_target_id,
+                                    AnimatableCurve::new(
+                                        animated_field!(Transform::scale),
+                                        AnimatableKeyframeCurve::new(scale
+                                            .iter()
+                                            .cycle()
+                                            .take(sample_count)
+                                            .enumerate()
+                                            .map(|(i, s)| (i as f32, Vec3::new(s.x, s.y, s.z))))
+                                        .expect("Failed to build scale curve")
+                                    )
+                                );
+                        }
+                    }
+
+                    //if !anim_clip.curves().is_empty() {}
+                    let anim_entity = commands
+                        .spawn((
+                            Name::new(ccs.name.to_owned()),
+                            MiloObject {
+                                id: (start_idx + i) as u32,
+                                name: ccs.name.to_owned(),
+                                dir: obj_dir_name.to_owned(),
+                            },
+                            MiloCharClip(animations.add(anim_clip)),
+                            ChildOf(root_entity)
+                        ))
+                        .id();
+
+                    if let Some(callback) = callback {
+                        let mut entity_command = commands.entity(anim_entity);
+                        callback(&mut entity_command);
+                    }
                 },
                 Object::Group(group) => {
                     let mat = map_matrix(group.get_local_xfm());

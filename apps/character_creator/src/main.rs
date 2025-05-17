@@ -17,6 +17,9 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Component)]
 pub struct SelectedCharacter;
 
+#[derive(Component)]
+pub struct SelectedAnimation;
+
 /*#[derive(Component)]
 pub enum HelpText {
     Character(String),
@@ -69,7 +72,7 @@ fn main() {
         //.add_systems(Update, active_camera_change)
         //.add_system(attach_free_cam)
         .add_systems(Update, load_default_character)
-        .add_systems(PostUpdate, set_placer_as_char_parent)
+        .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load))
         .add_systems(Update, print_trans_hierarchy)
         .run();
 }
@@ -352,6 +355,8 @@ fn load_default_character(
         .find(|ccs| ccs.name == "ui_loop")
         .unwrap();*/
 
+    return;
+
     // Setup animation on placer
     let mut anim_player = AnimationPlayer::default();
     let mut anim_clip = AnimationClip::default();
@@ -413,6 +418,7 @@ fn load_default_character(
 
 fn set_placer_as_char_parent(
     mut commands: Commands,
+    mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     //mut scene_events_reader: EventReader<LoadMiloSceneComplete>,
     state: Res<MiloState>,
     char_objects_query: Query<(Entity, Option<&ChildOf>, &MiloObject), Added<SelectedCharacter>>,
@@ -425,6 +431,16 @@ fn set_placer_as_char_parent(
     if char_objects_query.is_empty() {
         return
     }
+
+    // Load anim
+    scene_events_writer.write(
+        LoadMiloSceneWithCommands(
+            "char/alterna1/anims/alterna1_ui.milo".into(),
+            |commands| {
+                commands.insert(SelectedAnimation);
+            }
+        )
+    );
 
     // TODO: Remove when Character entry can be parsed
     /*let root_entity = root_query.single();
@@ -507,4 +523,73 @@ fn set_placer_as_char_parent(
                 .add(Parent:: Parent(placer_entity));*/
         }
     }
+}
+
+fn play_anim_after_load(
+    mut commands: Commands,
+    state: Res<MiloState>,
+    mut char_anims: ResMut<CharacterAnimations>,
+    milo_anims_query: Query<(Entity, &MiloCharClip, &MiloObject), Added<SelectedAnimation>>,
+    trans_query: Query<(Entity, &Name), (With<MiloObject>, With<Transform>)>,
+    root_query: Single<Entity, With<MiloRoot>>,
+    animations: Res<Assets<AnimationClip>>,
+    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
+) {
+    let play_clip = !milo_anims_query.is_empty();
+
+    for (_entity, MiloCharClip(anim_clip_handle), milo_object) in milo_anims_query.iter() {
+        match milo_object.name.as_str() {
+            "ui_enter" => {
+                char_anims.enter_clip = Some(anim_clip_handle.clone());
+            },
+            "ui_loop" => {
+                char_anims.loop_clip = Some(anim_clip_handle.clone());
+            },
+            _ => {}
+        }
+    }
+
+    // TODO: Move to event/observer or different system?
+    if !play_clip || (char_anims.enter_clip.is_none() && char_anims.loop_clip.is_none()) {
+        return;
+    }
+
+    let root_entity = root_query.into_inner();
+
+    let mut anim_player = AnimationPlayer::default();
+    //let mut anim_graph = AnimationGraph::new();
+    //let node_idx = anim_graph.add_clip(anim_clip, 1.0, anim_graph.root);
+
+    // TODO: Combine enter + loop clips somehow
+    let anim_loop_handle = char_anims.loop_clip.as_ref().unwrap();
+    let (anim_graph, node_idx) = AnimationGraph::from_clip(anim_loop_handle.clone());
+
+    let anim = animations.get(anim_loop_handle).unwrap();
+    //let targets = anim.curves().keys();
+
+    for (entity, name) in trans_query.iter() {
+        let trans_target_id = AnimationTargetId::from_name(name);
+        if anim.curves().contains_key(&trans_target_id) {
+            commands
+                .entity(entity)
+                .insert(AnimationTarget {
+                    id: trans_target_id,
+                    player: root_entity,
+                });
+        }
+    }
+
+    anim_player
+        .play(node_idx)
+        .set_speed(30.0)
+        .repeat();
+
+    commands
+        .entity(root_entity)
+        .insert((
+            anim_player,
+            AnimationGraphHandle(animation_graphs.add(anim_graph))
+        ));
+
+    log::debug!("Playing character animation!");
 }

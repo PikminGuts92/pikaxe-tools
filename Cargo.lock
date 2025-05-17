@@ -4276,7 +4276,7 @@ checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
 [[package]]
 name = "pikaxe"
 version = "0.1.0"
-source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#d35227d8d8dc03e248bb817f98b273b3e27572f9"
+source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#a92482bd7db91382f87116557340fa0d24d01d66"
 dependencies = [
  "base64 0.22.1",
  "flate2",
@@ -4314,7 +4314,7 @@ dependencies = [
 [[package]]
 name = "pikaxe_gltf"
 version = "0.1.0"
-source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#d35227d8d8dc03e248bb817f98b273b3e27572f9"
+source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#a92482bd7db91382f87116557340fa0d24d01d66"
 dependencies = [
  "gltf",
  "gltf-json",
@@ -4325,7 +4325,7 @@ dependencies = [
 [[package]]
 name = "pikaxe_macros"
 version = "0.1.0"
-source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#d35227d8d8dc03e248bb817f98b273b3e27572f9"
+source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#a92482bd7db91382f87116557340fa0d24d01d66"
 dependencies = [
  "lazy_static",
  "pikaxe_traits",
@@ -4337,7 +4337,7 @@ dependencies = [
 [[package]]
 name = "pikaxe_midi"
 version = "0.1.0"
-source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#d35227d8d8dc03e248bb817f98b273b3e27572f9"
+source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#a92482bd7db91382f87116557340fa0d24d01d66"
 dependencies = [
  "midly",
 ]
@@ -4345,7 +4345,7 @@ dependencies = [
 [[package]]
 name = "pikaxe_traits"
 version = "0.1.0"
-source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#d35227d8d8dc03e248bb817f98b273b3e27572f9"
+source = "git+https://github.com/PikminGuts92/pikaxe.git?branch=dev#a92482bd7db91382f87116557340fa0d24d01d66"
 
 [[package]]
 name = "pin-project"
