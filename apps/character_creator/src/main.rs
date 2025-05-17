@@ -72,6 +72,7 @@ fn main() {
         //.add_systems(Update, active_camera_change)
         //.add_system(attach_free_cam)
         .add_systems(Update, load_default_character)
+        .add_systems(Update, show_debug_gizmos)
         .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load))
         .add_systems(Update, print_trans_hierarchy)
         .run();
@@ -592,4 +593,31 @@ fn play_anim_after_load(
         ));
 
     log::debug!("Playing character animation!");
+}
+
+fn show_debug_gizmos(
+    mut gizmos: Gizmos,
+    bones_query: Query<(Entity, &GlobalTransform, Option<&ChildOf>), (With<MiloObject>, Without<Mesh3d>, With<SelectedCharacter>)>,
+) {
+    use bevy::color::palettes::css::*;
+
+    for (_, trans, parent) in bones_query.iter() {
+        let pos = trans.translation();
+        //let next_pos = trans.mul_transform(Transform::from_translation(Vec3::splat(5.0))).translation();
+
+        gizmos.sphere(pos, 1.0, LIMEGREEN);
+
+        //gizmos.arrow(pos, next_pos, BLUE);
+        //gizmos.axes(*trans, 1.0);
+
+        let Some(ChildOf(parent)) = parent else {
+            continue;
+        };
+
+        let Ok((_, parent_trans, _)) = bones_query.get(*parent) else {
+            continue;
+        };
+
+        gizmos.line(parent_trans.translation(), pos, BLUE);
+    }
 }
