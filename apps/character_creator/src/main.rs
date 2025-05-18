@@ -72,7 +72,7 @@ fn main() {
         //.add_systems(Update, active_camera_change)
         //.add_system(attach_free_cam)
         .add_systems(Update, load_default_character)
-        .add_systems(Update, show_debug_gizmos)
+        //.add_systems(Update, show_debug_gizmos)
         .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load))
         .add_systems(Update, print_trans_hierarchy)
         .run();
@@ -562,15 +562,17 @@ fn play_anim_after_load(
     //let node_idx = anim_graph.add_clip(anim_clip, 1.0, anim_graph.root);
 
     // TODO: Combine enter + loop clips somehow
+    //let anim_enter_handle = char_anims.enter_clip.as_ref().unwrap();
     let anim_loop_handle = char_anims.loop_clip.as_ref().unwrap();
-    let (anim_graph, node_idx) = AnimationGraph::from_clip(anim_loop_handle.clone());
 
-    let anim = animations.get(anim_loop_handle).unwrap();
-    //let targets = anim.curves().keys();
+    let (anim_graph, loop_node_index) = AnimationGraph::from_clip(anim_loop_handle.clone());
+    //let loop_node_index = anim_graph.add_clip(anim_loop_handle.clone(), 1.0, anim_graph.root);
+
+    let anim_loop = animations.get(anim_loop_handle).unwrap();
 
     for (entity, name) in trans_query.iter() {
         let trans_target_id = AnimationTargetId::from_name(name);
-        if anim.curves().contains_key(&trans_target_id) {
+        if anim_loop.curves().contains_key(&trans_target_id) {
             commands
                 .entity(entity)
                 .insert(AnimationTarget {
@@ -580,8 +582,15 @@ fn play_anim_after_load(
         }
     }
 
+    /*let end_anim_clip = {
+        let mut clip = AnimationClip::default();
+        clip.add_event(anim_enter.duration(), PlayClip(anim_loop_handle.clone()));
+        clip
+    };
+    let node_idx = anim_graph.add_clip(animations.add(end_anim_clip), 1.0, anim_graph.root);*/
+
     anim_player
-        .play(node_idx)
+        .play(loop_node_index)
         .set_speed(30.0)
         .repeat();
 
