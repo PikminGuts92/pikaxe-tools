@@ -3,6 +3,7 @@ use bevy::animation::{animated_field, AnimationTargetId};
 use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::prelude::*;
 use bevy::render::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
+use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::AsyncComputeTaskPool;
 use std::collections::{HashMap, HashSet};
@@ -778,6 +779,7 @@ fn update_milo_object_parents(
 
 fn update_skinned_meshes(
     mut update_skinned_meshes_events_reader: EventReader<UpdateSkinnedMeshes>,
+    mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut skinned_mesh_inverse_bindposes: ResMut<Assets<SkinnedMeshInverseBindposes>>,
     state: Res<MiloState>,
@@ -813,7 +815,7 @@ fn update_skinned_meshes(
                 (poses, bone_map)
             });
 
-        let inverse_bindposes = skinned_mesh_inverse_bindposes.add(poses);
+        //let inverse_bindposes = skinned_mesh_inverse_bindposes.add(poses);
 
         for (en, Mesh3d(mesh_handle), mo) in mesh_query.iter() {
             let mesh = meshes.get_mut(mesh_handle).unwrap();
@@ -828,10 +830,45 @@ fn update_skinned_meshes(
                 .any(|b| !b.name.is_empty());
 
             if !is_skinned {
+                log::error!("Not skinned: {}", &mo.name);
                 continue;
             }
 
-            
+            let (local_poses, local_bone_entities) = milo_mesh
+                .bones
+                .iter()
+                .map(|b| bone_idx_map
+                    .get(&b.name)
+                    .map(|(e, global_i)| (*e, /*poses[*global_i]*/ map_matrix(&b.trans)))
+                    .unwrap_or((Entity::PLACEHOLDER, Mat4::IDENTITY))
+                )
+                .fold((Vec::new(), Vec::new()), |(mut poses, mut entities), (en, mat)| {
+                    poses.push(mat);
+                    entities.push(en);
+
+                    (poses, entities)
+                });
+
+            mesh.insert_attribute(
+                Mesh::ATTRIBUTE_JOINT_INDEX,
+                VertexAttributeValues::Uint16x4(
+                    milo_mesh.vertices.iter().map(|v| v.bones.clone()).collect::<Vec<_>>()
+                )
+            );
+
+            mesh.insert_attribute(
+                Mesh::ATTRIBUTE_JOINT_WEIGHT,
+                milo_mesh.vertices.iter().map(|v| v.weights.clone()).collect::<Vec<_>>()
+            );
+
+            let local_inverse_bindposes = skinned_mesh_inverse_bindposes.add(local_poses);
+
+            commands
+                .entity(en)
+                .insert(SkinnedMesh {
+                    inverse_bindposes: local_inverse_bindposes,
+                    joints: local_bone_entities
+                });
         }
 
         log::debug!("Loaded skin for {}", obj_dir_name);
