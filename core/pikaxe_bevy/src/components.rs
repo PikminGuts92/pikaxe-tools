@@ -52,3 +52,6 @@ pub struct MiloGroup {
 
 #[derive(Component)]
 pub struct MiloRoot;
+
+#[derive(Component)]
+pub struct CloneTransform(pub Entity);

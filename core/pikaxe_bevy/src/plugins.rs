@@ -6,6 +6,8 @@ use bevy::render::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
 use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::AsyncComputeTaskPool;
+use bevy_mod_inverse_kinematics::*;
+use bevy_rapier3d::prelude::*;
 use std::collections::{HashMap, HashSet};
 use futures_lite::future;
 use pikaxe::ark::Ark;
@@ -22,6 +24,12 @@ pub struct MiloPlugin {
 
 impl Plugin for MiloPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins((
+            RapierPhysicsPlugin::<NoUserData>::default(),
+            RapierDebugRenderPlugin::default(),
+            InverseKinematicsPlugin
+        ));
+
         // Open ark
         let state = MiloState {
             ark: self.ark_path
@@ -45,6 +53,8 @@ impl Plugin for MiloPlugin {
             process_milo_scene_events,
             update_milo_object_parents,
             update_skinned_meshes,
+            update_skinned_meshes_ik,
+            clone_transforms
         ).chain());
 
         app.add_systems(Update, process_milo_async_textures);
@@ -627,6 +637,8 @@ fn process_milo_scene_events(
                                 name: trans.name.to_owned(),
                                 dir: obj_dir_name.to_owned(),
                             },
+                            //RigidBody::Dynamic,
+                            //LockedAxes::TRANSLATION_LOCKED,
                             MiloBone
                         ))
                         .id();
@@ -872,6 +884,73 @@ fn update_skinned_meshes(
         }
 
         log::debug!("Loaded skin for {}", obj_dir_name);
+    }
+}
+
+fn update_skinned_meshes_ik(
+    mut update_skinned_meshes_events_reader: EventReader<UpdateSkinnedMeshes>,
+    mut commands: Commands,
+    bone_query: Query<(Entity, &MiloObject), With<MiloBone>>,
+) {
+    for UpdateSkinnedMeshes(obj_dir_name) in update_skinned_meshes_events_reader.read() {
+        let bone_map = bone_query
+            .iter()
+            .filter(|(_, mo)| mo.dir.eq(obj_dir_name))
+            .map(|(en, mo)| (mo.name.as_str(), en))
+            .collect::<HashMap<_, _>>();
+
+        let hand_l = bone_map.get("bone_L-hand.mesh").unwrap();
+        let foretwist2_l = bone_map.get("bone_L-foreTwist2.mesh").unwrap();
+
+
+        let upperarm_l = bone_map.get("bone_L-upperArm.mesh").unwrap();
+        let uppertwist_l = bone_map.get("bone_L-upperTwist1.mesh").unwrap();
+
+        let forearm_l = bone_map.get("bone_L-foreArm.mesh").unwrap();
+        let foretwist1_l = bone_map.get("bone_L-foreTwist1.mesh").unwrap();
+
+        commands
+            .entity(*uppertwist_l)
+            .insert(CloneTransform(*upperarm_l));
+
+            commands
+            .entity(*foretwist1_l)
+            .insert(CloneTransform(*forearm_l));
+
+        let upperarm_r = bone_map.get("bone_R-upperArm.mesh").unwrap();
+        let uppertwist_r = bone_map.get("bone_R-upperTwist1.mesh").unwrap();
+
+        let forearm_r = bone_map.get("bone_R-foreArm.mesh").unwrap();
+        let foretwist1_r = bone_map.get("bone_R-foreTwist1.mesh").unwrap();
+
+        commands
+            .entity(*uppertwist_r)
+            .insert(CloneTransform(*upperarm_r));
+
+        commands
+            .entity(*foretwist1_r)
+            .insert(CloneTransform(*forearm_r));
+
+        /*commands
+            .entity(*foretwist2_l)
+            .insert(IkConstraint {
+                chain_length: 3,
+                iterations: 20,
+                target: *hand_l,
+                pole_target: None,
+                pole_angle: std::f32::consts::FRAC_PI_2,
+                enabled: true,
+            });*/
+    }
+}
+
+fn clone_transforms(
+    transforms_query: Query<&Transform, Without<CloneTransform>>,
+    mut entity_query: Query<(&mut Transform, &CloneTransform)>,
+) {
+    for (mut transform, &CloneTransform(clone_en)) in entity_query.iter_mut() {
+        let clone_transform = transforms_query.get(clone_en).unwrap();
+        *transform = *clone_transform;
     }
 }
 
