@@ -597,7 +597,7 @@ fn play_anim_after_load(
 
 fn show_debug_gizmos(
     mut gizmos: Gizmos,
-    bones_query: Query<(Entity, &GlobalTransform, Option<&ChildOf>), (With<MiloObject>, Without<Mesh3d>, With<SelectedCharacter>)>,
+    bones_query: Query<(Entity, &GlobalTransform, Option<&ChildOf>), (With<MiloBone>, With<SelectedCharacter>)>,
 ) {
     use bevy::color::palettes::css::*;
 

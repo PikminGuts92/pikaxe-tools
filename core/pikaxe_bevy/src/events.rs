@@ -24,3 +24,6 @@ pub struct LoadMiloSceneComplete(pub String);
 
 #[derive(Event)]
 pub struct UpdateMiloObjectParents;
+
+#[derive(Event)]
+pub struct UpdateSkinnedMeshes(pub String);

@@ -2,6 +2,7 @@ use crate::prelude::*;
 use bevy::animation::{animated_field, AnimationTargetId};
 use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::prelude::*;
+use bevy::render::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::AsyncComputeTaskPool;
 use std::collections::{HashMap, HashSet};
@@ -33,6 +34,7 @@ impl Plugin for MiloPlugin {
         app.add_event::<LoadMiloSceneWithCommands>();
         app.add_event::<LoadMiloSceneComplete>();
         app.add_event::<UpdateMiloObjectParents>();
+        app.add_event::<UpdateSkinnedMeshes>();
 
         app.insert_resource(state);
 
@@ -40,7 +42,8 @@ impl Plugin for MiloPlugin {
 
         app.add_systems(Update, (
             process_milo_scene_events,
-            update_milo_object_parents
+            update_milo_object_parents,
+            update_skinned_meshes,
         ).chain());
 
         app.add_systems(Update, process_milo_async_textures);
@@ -82,6 +85,7 @@ fn process_milo_scene_events(
     mut animations: ResMut<Assets<AnimationClip>>,
     mut scene_events_writer: EventWriter<LoadMiloSceneComplete>,
     mut update_parents_events_writer: EventWriter<UpdateMiloObjectParents>,
+    mut update_skinned_meshes_events_writer: EventWriter<UpdateSkinnedMeshes>,
     root_query: Query<Entity, With<MiloRoot>>,
 ) {
     /*for e in state.ark.as_ref().unwrap().entries.iter() {
@@ -108,8 +112,8 @@ fn process_milo_scene_events(
 
         let (sys_info, mut milo) = state.open_milo(&milo_path).unwrap();
 
-        let obj_dir_name = match &milo {
-            ObjectDir::ObjectDir(dir) => &dir.name
+        let (obj_dir_name, obj_dir_type) = match &milo {
+            ObjectDir::ObjectDir(dir) => (&dir.name, &dir.dir_type)
         };
 
         //let mut texture_map = HashMap::new(); // name -> tex future
@@ -254,14 +258,17 @@ fn process_milo_scene_events(
                     let mat = map_matrix(band_placer.get_local_xfm());
 
                     let placer_entity = commands
-                        .spawn(Name::new(band_placer.name.to_owned()))
-                        .insert((Transform::from_matrix(mat), Visibility::Inherited))
-                        .insert(MiloObject {
-                            id: (start_idx + i) as u32,
-                            name: band_placer.name.to_owned(),
-                            dir: obj_dir_name.to_owned(),
-                        })
-                        .insert(MiloBandPlacer)
+                        .spawn((
+                            Name::new(band_placer.name.to_owned()),
+                            Transform::from_matrix(mat),
+                            Visibility::Inherited,
+                            MiloObject {
+                                id: (start_idx + i) as u32,
+                                name: band_placer.name.to_owned(),
+                                dir: obj_dir_name.to_owned(),
+                            },
+                            MiloBandPlacer
+                        ))
                         .id();
 
                     if let Some(callback) = callback {
@@ -277,8 +284,8 @@ fn process_milo_scene_events(
                 },
                 Object::Cam(cam) => {
                     let cam_entity = commands
-                        .spawn(Name::new(cam.name.to_owned()))
-                        .insert((
+                        .spawn((
+                            Name::new(cam.name.to_owned()),
                             Camera3d::default(),
                             Camera {
                                 is_active: false,
@@ -295,14 +302,14 @@ fn process_milo_scene_events(
                             Transform::from_matrix(
                                 map_matrix(cam.get_local_xfm())
                             ), //.looking_at(Vec3::ZERO, Vec3::Z),
-                            Visibility::Inherited
+                            Visibility::Inherited,
+                            MiloObject {
+                                id: (start_idx + i) as u32,
+                                name: cam.name.to_owned(),
+                                dir: obj_dir_name.to_owned(),
+                            },
+                            MiloCam
                         ))
-                        .insert(MiloObject {
-                            id: (start_idx + i) as u32,
-                            name: cam.name.to_owned(),
-                            dir: obj_dir_name.to_owned(),
-                        })
-                        .insert(MiloCam)
                         .id();
 
                     if let Some(callback) = callback {
@@ -422,13 +429,16 @@ fn process_milo_scene_events(
                     let mat = map_matrix(group.get_local_xfm());
 
                     let group_entity = commands
-                        .spawn(Name::new(group.name.to_owned()))
-                        .insert((Transform::from_matrix(mat), Visibility::Inherited))
-                        .insert(MiloObject {
-                            id: (start_idx + i) as u32,
-                            name: group.name.to_owned(),
-                            dir: obj_dir_name.to_owned(),
-                        })
+                        .spawn((
+                            Name::new(group.name.to_owned()),
+                            Transform::from_matrix(mat),
+                            Visibility::Inherited,
+                            MiloObject {
+                                id: (start_idx + i) as u32,
+                                name: group.name.to_owned(),
+                                dir: obj_dir_name.to_owned(),
+                            }
+                        ))
                         .id();
 
                     if let Some(callback) = callback {
@@ -538,22 +548,22 @@ fn process_milo_scene_events(
 
                     // Add mesh
                     let mesh_entity = commands
-                        .spawn(Name::new(mesh.name.to_owned()))
-                        .insert((
+                        .spawn((
+                            Name::new(mesh.name.to_owned()),
                             Mesh3d(meshes.add(bevy_mesh)),
                             MeshMaterial3d(mat_handle),
                             Transform::from_matrix(mat),
-                            Visibility::Inherited
+                            Visibility::Inherited,
+                            MiloObject {
+                                id: (start_idx + i) as u32,
+                                name: mesh.name.to_owned(),
+                                dir: obj_dir_name.to_owned(),
+                            },
+                            MiloMesh {
+                                verts: mesh.vertices.len(),
+                                faces: mesh.faces.len()
+                            }
                         ))
-                        .insert(MiloObject {
-                            id: (start_idx + i) as u32,
-                            name: mesh.name.to_owned(),
-                            dir: obj_dir_name.to_owned(),
-                        })
-                        .insert(MiloMesh {
-                            verts: mesh.vertices.len(),
-                            faces: mesh.faces.len()
-                        })
                         .id();
 
                     if mesh.sphere.r > 0.0 && false {
@@ -607,13 +617,17 @@ fn process_milo_scene_events(
                     let mat = map_matrix(trans.get_local_xfm());
 
                     let trans_entity = commands
-                        .spawn(Name::new(trans.name.to_owned()))
-                        .insert((Transform::from_matrix(mat), Visibility::Inherited))
-                        .insert(MiloObject {
-                            id: (start_idx + i) as u32,
-                            name: trans.name.to_owned(),
-                            dir: obj_dir_name.to_owned(),
-                        })
+                        .spawn((
+                            Name::new(trans.name.to_owned()),
+                            Transform::from_matrix(mat),
+                            Visibility::Inherited,
+                            MiloObject {
+                                id: (start_idx + i) as u32,
+                                name: trans.name.to_owned(),
+                                dir: obj_dir_name.to_owned(),
+                            },
+                            MiloBone
+                        ))
                         .id();
 
                     if let Some(callback) = callback {
@@ -639,6 +653,11 @@ fn process_milo_scene_events(
                     image_task: task,
                     mat_handles: mats
                 });
+        }
+
+        let is_character = obj_dir_type.eq("Character");
+        if is_character {
+            update_skinned_meshes_events_writer.write(UpdateSkinnedMeshes(obj_dir_name.to_owned()));
         }
 
         milos_updated = true;
@@ -754,6 +773,80 @@ fn update_milo_object_parents(
         commands
             .entity(entity)
             .insert(ChildOf(new_parent_entity));
+    }
+}
+
+fn update_skinned_meshes(
+    mut update_skinned_meshes_events_reader: EventReader<UpdateSkinnedMeshes>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut skinned_mesh_inverse_bindposes: ResMut<Assets<SkinnedMeshInverseBindposes>>,
+    state: Res<MiloState>,
+    bone_query: Query<(Entity, &MiloObject), With<MiloBone>>,
+    mesh_query: Query<(Entity, &Mesh3d, &MiloObject), (With<MiloMesh>, Without<SkinnedMesh>)>,
+) {
+    for UpdateSkinnedMeshes(obj_dir_name) in update_skinned_meshes_events_reader.read() {
+        let transforms_map = bone_query
+            .iter()
+            .filter(|(_, mo)| mo.dir.eq(obj_dir_name))
+            .map(|(_, mo)| {
+                // TODO: Support GH1-style bones
+                let trans = match state.objects.get(mo.id as usize) {
+                    Some(Object::Trans(trans)) => trans as &dyn Trans,
+                    _ => unreachable!("Bone object not found"),
+                };
+
+                (&mo.name, trans)
+            })
+            .collect::<HashMap<_, _>>();
+
+        let (poses, bone_idx_map) = bone_query
+            .iter()
+            .filter(|(_, mo)| mo.dir.eq(obj_dir_name))
+            .map(|(e, mo)| {
+                let global_mat = compute_global_mat(&mo.name, &transforms_map);
+                (&mo.name, e, global_mat.inverse())
+            })
+            .fold((Vec::new(), HashMap::new()), |(mut poses, mut bone_map), (name, e, mat)| {
+                bone_map.insert(name, (e, poses.len()));
+                poses.push(mat);
+
+                (poses, bone_map)
+            });
+
+        let inverse_bindposes = skinned_mesh_inverse_bindposes.add(poses);
+
+        for (en, Mesh3d(mesh_handle), mo) in mesh_query.iter() {
+            let mesh = meshes.get_mut(mesh_handle).unwrap();
+            let milo_mesh = match state.objects.get(mo.id as usize) {
+                Some(Object::Mesh(mesh)) => mesh,
+                _ => unreachable!("Mesh object not found"),
+            };
+
+            let is_skinned = milo_mesh
+                .bones
+                .iter()
+                .any(|b| !b.name.is_empty());
+
+            if !is_skinned {
+                continue;
+            }
+
+            
+        }
+
+        log::debug!("Loaded skin for {}", obj_dir_name);
+    }
+}
+
+fn compute_global_mat(
+    bone_name: &String,
+    transforms: &HashMap<&String, &dyn Trans>
+) -> Mat4 {
+    match transforms.get(bone_name) {
+        Some(trans) if !trans.get_parent().is_empty()
+            => compute_global_mat(trans.get_parent(), transforms) * map_matrix(trans.get_local_xfm()),
+        Some(trans) => map_matrix(trans.get_local_xfm()),
+        _ => Mat4::IDENTITY,
     }
 }
 
