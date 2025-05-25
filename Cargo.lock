@@ -1815,6 +1815,7 @@ dependencies = [
  "bevy",
  "bevy_fly_camera",
  "bevy_infinite_grid",
+ "bevy_rapier3d",
  "clap",
  "log",
  "pikaxe",

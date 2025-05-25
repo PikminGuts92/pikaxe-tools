@@ -1,5 +1,9 @@
+use bevy::ecs::component::HookContext;
+use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
 use bevy::tasks::Task;
+
+use crate::prelude::MiloEntityMap;
 
 pub(crate) enum TextureType {
     Diffuse,
@@ -28,6 +32,10 @@ pub struct MiloObject {
 pub struct ParentOverride;
 
 #[derive(Component)]
+pub struct CustomParent(pub String);
+
+#[derive(Component)]
+//#[component(on_add = add_milo_object)]
 pub struct MiloMesh {
     pub verts: usize,
     pub faces: usize,
@@ -55,3 +63,25 @@ pub struct MiloRoot;
 
 #[derive(Component)]
 pub struct CloneTransform(pub Entity);
+
+#[derive(Component)]
+pub struct CloneWorldTransform(pub Entity);
+
+#[derive(Component)]
+pub struct PhysicsControlledBone;
+
+/*fn add_milo_object(
+    mut world: DeferredWorld,
+    HookContext { entity, .. }: HookContext,
+    //trigger: Trigger<OnInsert, MiloObject>,
+    //milo_object_query: Query<&MiloObject>,
+    //mut milo_entity_map: ResMut<MiloEntityMap>,
+) {
+    //let milo_object = milo_object_query.get(trigger.target()).unwrap(); // Observers with results not supported
+    //milo_entity_map.set_entity(&milo_object.name, trigger.target());
+
+    let milo_object = world.get::<MiloObject>(entity).unwrap();
+    let mut milo_entity_map = world.get_resource_mut::<MiloEntityMap>().unwrap();
+
+    milo_entity_map.set_entity(&milo_object.name, entity);
+}*/

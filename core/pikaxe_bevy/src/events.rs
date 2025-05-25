@@ -23,7 +23,7 @@ pub struct LoadMiloSceneWithCommands(pub String, pub fn(&mut EntityCommands));
 pub struct LoadMiloSceneComplete(pub String);
 
 #[derive(Event)]
-pub struct UpdateMiloObjectParents;
+pub struct UpdateSkinnedMeshes(pub String);
 
 #[derive(Event)]
-pub struct UpdateSkinnedMeshes(pub String);
+pub struct SetCloneWorldTransform(pub Entity, pub String);

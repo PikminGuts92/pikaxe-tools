@@ -7,7 +7,7 @@ edition.workspace = true
 [dependencies]
 bevy = { workspace = true }
 bevy_mod_inverse_kinematics = { git = "https://github.com/PikminGuts92/bevy_mod_inverse_kinematics.git", branch = "bevy16" }
-bevy_rapier3d = { version = "0.30.0", features = [ "simd-stable" ] }
+bevy_rapier3d = { workspace = true }
 pikaxe = { workspace = true }
 futures-lite = { version = "2.6.0" }
 log = { workspace = true }

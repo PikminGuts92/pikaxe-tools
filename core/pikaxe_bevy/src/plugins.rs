@@ -11,10 +11,17 @@ use bevy_rapier3d::prelude::*;
 use std::collections::{HashMap, HashSet};
 use futures_lite::future;
 use pikaxe::ark::Ark;
-use pikaxe::scene::{Blend, Matrix, MiloObject as MObject, Object, ObjectDir, Sphere as MiloSphere, Trans, RndMesh, ZMode};
+use pikaxe::scene::{Blend, Matrix, Matrix3, MiloObject as MObject, Object, ObjectDir, RndMesh, Sphere as MiloSphere, Trans, ZMode};
 use pikaxe::texture::Bitmap;
 use pikaxe::Platform;
 use std::path::PathBuf;
+
+const MILO_TO_BEVY_MATRIX: Mat4 = Mat4::from_cols_array(&[
+    -1.0,  0.0,  0.0, 0.0,
+    0.0,  0.0,  1.0, 0.0,
+    0.0,  1.0,  0.0, 0.0,
+    0.0,  0.0,  0.0, 1.0,
+]);
 
 #[derive(Default)]
 pub struct MiloPlugin {
@@ -42,38 +49,133 @@ impl Plugin for MiloPlugin {
         app.add_event::<LoadMiloScene>();
         app.add_event::<LoadMiloSceneWithCommands>();
         app.add_event::<LoadMiloSceneComplete>();
-        app.add_event::<UpdateMiloObjectParents>();
         app.add_event::<UpdateSkinnedMeshes>();
 
         app.insert_resource(state);
+        app.insert_resource(MiloEntityMap::default());
 
         app.add_systems(Startup, init_world);
 
         app.add_systems(Update, (
-            process_milo_scene_events,
-            update_milo_object_parents,
+            process_milo_scene_events.pipe(update_milo_object_parents),
             update_skinned_meshes,
-            update_skinned_meshes_ik,
-            clone_transforms
+            update_skinned_meshes_ik
         ).chain());
 
+        app.add_systems(PostUpdate, (
+            (clone_transforms, clone_world_transforms).after(TransformSystem::TransformPropagate),
+            clone_world_transforms_with_physics.after(PhysicsSet::Writeback)
+        ));
+
         app.add_systems(Update, process_milo_async_textures);
+        app.add_observer(add_milo_object);
+        app.add_observer(remove_milo_object);
+
+        app.add_observer(set_clone_world_transform);
     }
 }
+
+fn add_milo_object(
+    trigger: Trigger<OnInsert, MiloObject>,
+    milo_object_query: Query<&MiloObject>,
+    mut milo_entity_map: ResMut<MiloEntityMap>,
+) {
+    let milo_object = milo_object_query.get(trigger.target()).unwrap(); // Observers with results not supported
+    milo_entity_map.set_entity(&milo_object.name, trigger.target());
+}
+
+fn remove_milo_object(
+    trigger: Trigger<OnRemove, MiloObject>,
+    milo_object_query: Query<&MiloObject>,
+    mut milo_entity_map: ResMut<MiloEntityMap>,
+) {
+    let milo_object = milo_object_query.get(trigger.target()).unwrap(); // Observers with results not supported
+    milo_entity_map.remove(&milo_object.name);
+}
+
+fn set_clone_world_transform(
+    trigger: Trigger<SetCloneWorldTransform>,
+    mut commands: Commands,
+    milo_entity_map: Res<MiloEntityMap>,
+) {
+    let cloned_entity = trigger.0;
+    let entity = milo_entity_map.get_entity(&trigger.1).unwrap();
+
+    commands
+        .entity(entity)
+        .remove::<ChildOf>()
+        //.remove::<GlobalTransform>()
+        //.insert(Transform::default())
+        .insert((
+            ParentOverride,
+            PhysicsControlledBone,
+            CloneWorldTransform(cloned_entity)
+        ));
+}
+
 
 fn init_world(
     mut commands: Commands,
 ) {
-    // Translate to bevy coordinate system
-    let trans_mat = Mat4::from_cols_array(&[
-        -1.0,  0.0,  0.0, 0.0,
-        0.0,  0.0,  1.0, 0.0,
-        0.0,  1.0,  0.0, 0.0,
-        0.0,  0.0,  0.0, 1.0,
-    ]);
+    // TODO: Move to exe project?
+    // Ground
+    let ground_size = 1000.1;
+    let ground_height = 0.1;
+    commands.spawn((
+        Transform::from_xyz(0.0, -ground_height, 0.0),
+        Collider::cuboid(ground_size, ground_height, ground_size),
+    ));
 
+    let new_parent = commands
+        .spawn_empty()
+        .insert((
+            Transform::from_xyz(0., 30., 0.),
+        ))
+        .id();
+
+    let ball_parent = commands
+        .spawn_empty()
+        .insert(RigidBody::Fixed)
+        //.insert(Collider::ball(2.0))
+        //.insert(ChildOf(new_parent))
+        .insert(Transform::from_xyz(0., 35., 0.))
+        .id();
+
+    commands
+        .spawn(RigidBody::Dynamic)
+        .insert(Collider::ball(0.5))
+        .insert(Restitution::coefficient(0.7))
+        .insert(Transform::from_xyz(0.0, 4.0, 0.0));
+
+    let cube_size = 0.1;
+    let joint = RopeJointBuilder::new(6.0);
+    let parent = commands
+        .spawn(RigidBody::Dynamic)
+        .insert(Collider::cuboid(cube_size, cube_size, cube_size))
+        //.insert(Transform::from_xyz(0.0, 0.0, 1.0))
+        //.insert(ChildOf(ball_parent))
+        .insert(ImpulseJoint::new(ball_parent, joint))
+        .id();
+    let parent = commands
+        .spawn(RigidBody::Dynamic)
+        .insert(Collider::cuboid(cube_size, cube_size, cube_size))
+        //.insert(Transform::from_xyz(0.0, 0.0, 1.0))
+        //.insert(ChildOf(parent))
+        .insert(ImpulseJoint::new(parent, joint))
+        .id();
+    let parent = commands
+        .spawn(RigidBody::Dynamic)
+        //.insert(LockedAxes::TRANSLATION_LOCKED)
+        .insert(Collider::cuboid(cube_size, cube_size, cube_size))
+        //.insert(ColliderMassProperties::Mass(20.))
+        //.insert(Transform::from_xyz(0.0, 0.0, 1.0))
+        //.insert(ChildOf(parent))
+        .insert(ImpulseJoint::new(parent, joint))
+        .id();
+
+    // Translate to bevy coordinate system
     //let scale_mat = Mat4::from_scale(Vec3::new(0.1, 0.1, 0.1));
-    let trans = Transform::from_matrix(trans_mat);
+    let trans = Transform::from_matrix(MILO_TO_BEVY_MATRIX);
 
     commands
         .spawn(Name::new("Root"))
@@ -95,10 +197,9 @@ fn process_milo_scene_events(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut animations: ResMut<Assets<AnimationClip>>,
     mut scene_events_writer: EventWriter<LoadMiloSceneComplete>,
-    mut update_parents_events_writer: EventWriter<UpdateMiloObjectParents>,
     mut update_skinned_meshes_events_writer: EventWriter<UpdateSkinnedMeshes>,
     root_query: Query<Entity, With<MiloRoot>>,
-) {
+) -> bool {
     /*for e in state.ark.as_ref().unwrap().entries.iter() {
         log::debug!("{}", &e.path);
     }*/
@@ -262,6 +363,8 @@ fn process_milo_scene_events(
                 (tex.get_name(), (task, Vec::new()))
             })
             .collect::<HashMap<_, _>>();
+
+        let mut trans_map = HashMap::new(); // TODO: Clean this up
 
         for (i, obj) in milo.get_entries().iter().enumerate() {
             match obj {
@@ -435,6 +538,127 @@ fn process_milo_scene_events(
                         let mut entity_command = commands.entity(anim_entity);
                         callback(&mut entity_command);
                     }
+
+                    log::info!("Loaded char clip samples: {}", ccs.get_name());
+                },
+                Object::CharHair(ch) => {
+                    continue;
+
+                    for (si, strand) in ch.strands.iter().enumerate() {
+                        // TODO: Don't forget about root field!
+                        let root_bone = &strand.root;
+                        let strand_mat = map_matrix3(&strand.base_mat);
+                        let mut previous_origin = MILO_TO_BEVY_MATRIX * strand_mat.clone();
+
+                        let strand_name = format!("{}/strand_{si}", ch.get_name());
+
+                        let rad = 0.1;
+                        let shift = 1.0;
+
+                        let bone_entity = trans_map.get(root_bone).map(|b| *b).unwrap();
+
+                        let strand_entity = commands
+                            .spawn((
+                                Name::new(strand_name),
+                                //Transform::from_matrix(strand_mat),
+                                Transform::IDENTITY,
+                                Visibility::Inherited,
+                                //CustomParent(root_bone.to_owned()),
+                                CloneWorldTransform(bone_entity),
+                                ParentOverride,
+                                //ChildOf(root_entity),
+                                MiloObject {
+                                    id: (start_idx + i) as u32,
+                                    name: ch.name.to_owned(),
+                                    dir: obj_dir_name.to_owned(),
+                                },
+                                MiloCharHair,
+                                RigidBody::KinematicPositionBased,
+                                Collider::cuboid(rad, rad, rad)
+                            ))
+                            .id();
+
+                        let mut point_parent_entity = strand_entity;
+
+                        for (pi, point) in strand.points.iter().enumerate() {
+                            let point_name = format!("{}/strand_{si}/point_{pi}", ch.get_name());
+                            println!("ERRERJE EJRE {}", &point_name);
+
+                            //let axis = Vec3::new(1.0, 1.0, 0.0);
+                            let joint = SphericalJointBuilder::new()
+                                .local_anchor1(Vec3::new(0.0, 0.0, 1.0))
+                                .local_anchor2(Vec3::new(0.0, 0.0, -3.0));
+                            let joint = RopeJointBuilder::new(point.length)
+                                .local_anchor1(Vec3::splat(0.0))
+                                .local_anchor2(Vec3::new(0.0, -point.length, 0.0));
+
+                            let joint = SphericalJointBuilder::new()
+                                .local_anchor1(Vec3::splat(0.0))
+                                .local_anchor2(Vec3::new(0.0, -point.length, 0.0));
+
+                            let point_entity = commands
+                                .spawn((
+                                    Name::new(point_name),
+                                    Transform::from_matrix(previous_origin),
+                                    //Transform::IDENTITY,
+                                    //Transform::from_translation(Vec3::new(0.0, -point.length * 0.5, 0.0)),
+                                    Visibility::Inherited,
+                                    //ChildOf(point_parent_entity),
+                                    ParentOverride,
+                                    MiloObject {
+                                        id: (start_idx + i) as u32,
+                                        name: ch.name.to_owned(),
+                                        dir: obj_dir_name.to_owned(),
+                                    },
+                                    MiloCharHair,
+                                    RigidBody::Dynamic,
+                                    //LockedAxes::TRANSLATION_LOCKED,
+                                    //Collider::cuboid(rad, rad, rad),
+                                    //Collider::ball(0.25),
+                                    //Collider::cylinder(point.length * 0.5, 0.5),
+                                    //ColliderMassProperties::Mass(20.),
+                                    //AdditionalMassProperties::Mass(0.5),
+                                    AdditionalMassProperties::MassProperties(MassProperties {
+                                        mass: 1.0,
+                                        local_center_of_mass: Vec3::new(0.0, -point.length * 0.5, 0.0),
+                                        //local_center_of_mass: Vec3::new(0.0, -point.length, 0.0),
+                                        principal_inertia: Vec3::splat(ch.inertia * 100.0),
+                                        ..Default::default()
+                                    }),
+                                    Friction::coefficient(ch.friction),
+                                    Restitution::coefficient(50.0),
+                                    ImpulseJoint::new(point_parent_entity, joint),
+                                    ColliderDisabled
+                                ))
+                                .with_child((
+                                    Transform::from_translation(Vec3::new(0.0, -point.length * 0.5, 0.0)),
+                                    Collider::cylinder(point.length * 0.4, 0.1),
+                                    //ColliderMassProperties::Mass(20.),
+                                ))
+                                .id();
+
+                            if let Some(callback) = callback {
+                                let mut entity_command = commands.entity(point_entity);
+                                callback(&mut entity_command);
+                            }
+
+                            if point_parent_entity != strand_entity {
+                                commands
+                                    .entity(point_parent_entity)
+                                    .trigger(SetCloneWorldTransform(point_parent_entity, point.bone.to_owned()));
+                            }
+
+                            previous_origin *= Mat4::from_translation(Vec3::new(0., 0., point.length));
+                            point_parent_entity = point_entity;
+                        }
+
+                        if let Some(callback) = callback {
+                            let mut entity_command = commands.entity(strand_entity);
+                            callback(&mut entity_command);
+                        }
+                    }
+
+                    log::info!("Loaded char hair: {}", ch.get_name());
                 },
                 Object::Group(group) => {
                     let mat = map_matrix(group.get_local_xfm());
@@ -653,6 +877,7 @@ fn process_milo_scene_events(
                         .add_child(trans_entity);
 
                     log::info!("Loaded trans: {}", trans.get_name());
+                    trans_map.insert(trans.get_name(), trans_entity);
                 },
                 _ => {}
             }
@@ -678,19 +903,17 @@ fn process_milo_scene_events(
         scene_events_writer.write(LoadMiloSceneComplete(milo_path.to_owned()));
     }
 
-    if milos_updated {
-        update_parents_events_writer.write(UpdateMiloObjectParents);
-    }
+    milos_updated
 }
 
 fn update_milo_object_parents(
+    milos_updated: In<bool>,
     mut commands: Commands,
     state: Res<MiloState>,
     root_query: Query<Entity, With<MiloRoot>>,
-    milo_objects_query: Query<(Entity, &MiloObject, Has<ParentOverride>), With<Transform>>,
-    update_parents_events_reader: EventReader<UpdateMiloObjectParents>,
+    milo_objects_query: Query<(Entity, &MiloObject, Has<ParentOverride>, Option<&CustomParent>)>,
 ) {
-    if update_parents_events_reader.is_empty() {
+    if !*milos_updated {
         return;
     }
 
@@ -700,7 +923,7 @@ fn update_milo_object_parents(
 
     let obj_entities = milo_objects_query
         .iter()
-        .map(|(en, mo, hpo)| (en, &state.objects[mo.id as usize], hpo))
+        .map(|(en, mo, hpo, cp)| (en, &state.objects[mo.id as usize], hpo, cp))
         .collect::<Vec<_>>();
 
     /*let (entity_map, children_map) = obj_entities
@@ -736,8 +959,15 @@ fn update_milo_object_parents(
 
     let (entity_map, parent_map) = obj_entities
         .iter()
-        .fold((HashMap::new(), HashMap::new()), |(mut entity_acc, mut parent_acc), (en, obj, _)| {
+        .fold((HashMap::new(), HashMap::new()), |(mut entity_acc, mut parent_acc), (en, obj, _, cp)| {
             entity_acc.insert(obj.get_name(), en.clone());
+
+            // TODO: Clean this up
+            if let Some(&CustomParent(parent)) = cp.as_ref() {
+                if !parent.is_empty() && !parent.eq(obj.get_name()) {
+                    parent_acc.insert(obj.get_name(), parent.as_str());
+                }
+            }
 
             let trans_parent = match obj {
                 Object::BandPlacer(obj) => &obj.parent,
@@ -757,7 +987,7 @@ fn update_milo_object_parents(
             (entity_acc, parent_acc)
         });
 
-    for (entity, obj, parent_override) in obj_entities {
+    for (entity, obj, parent_override, _) in obj_entities {
         if parent_override {
             continue;
         }
@@ -945,12 +1175,32 @@ fn update_skinned_meshes_ik(
 }
 
 fn clone_transforms(
-    transforms_query: Query<&Transform, Without<CloneTransform>>,
+    transforms_query: Query<&Transform, (Without<CloneTransform>, Without<CloneWorldTransform>)>,
     mut entity_query: Query<(&mut Transform, &CloneTransform)>,
 ) {
     for (mut transform, &CloneTransform(clone_en)) in entity_query.iter_mut() {
         let clone_transform = transforms_query.get(clone_en).unwrap();
         *transform = *clone_transform;
+    }
+}
+
+fn clone_world_transforms(
+    transforms_query: Query<&GlobalTransform, (Without<CloneTransform>, Without<CloneWorldTransform>)>,
+    mut entity_query: Query<(&mut Transform, &CloneWorldTransform), Without<PhysicsControlledBone>>,
+) {
+    for (mut transform, &CloneWorldTransform(clone_en)) in entity_query.iter_mut() {
+        let clone_transform = transforms_query.get(clone_en).unwrap();
+        *transform = clone_transform.compute_transform();
+    }
+}
+
+fn clone_world_transforms_with_physics(
+    transforms_query: Query<&GlobalTransform, (Without<CloneTransform>, Without<CloneWorldTransform>)>,
+    mut entity_query: Query<(&mut Transform, &CloneWorldTransform), With<PhysicsControlledBone>>,
+) {
+    for (mut transform, &CloneWorldTransform(clone_en)) in entity_query.iter_mut() {
+        let clone_transform = transforms_query.get(clone_en).unwrap();
+        *transform = clone_transform.compute_transform();
     }
 }
 
@@ -1018,6 +1268,27 @@ pub fn map_matrix(m: &Matrix) -> Mat4 {
         m.m42,
         m.m43,
         m.m44,
+    ])
+}
+
+pub fn map_matrix3(m: &Matrix3) -> Mat4 {
+    Mat4::from_cols_array(&[
+        m.m11,
+        m.m12,
+        m.m13,
+        0.0,
+        m.m21,
+        m.m22,
+        m.m23,
+        0.0,
+        m.m31,
+        m.m32,
+        m.m33,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
     ])
 }
 

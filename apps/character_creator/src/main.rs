@@ -4,9 +4,10 @@
 mod args;
 
 use args::*;
-use bevy::{animation::{animated_field, AnimationTarget, AnimationTargetId}, log::{info, LogPlugin}, pbr::wireframe::WireframePlugin, prelude::*};
+use bevy::{animation::{animated_field, AnimationTarget, AnimationTargetId}, input::common_conditions::input_just_pressed, log::{info, LogPlugin}, pbr::wireframe::WireframePlugin, prelude::*};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_infinite_grid::{InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
+use bevy_rapier3d::prelude::*;
 use pikaxe::scene::Object;
 use pikaxe_bevy::prelude::*;
 use std::collections::HashMap;
@@ -72,7 +73,12 @@ fn main() {
         //.add_systems(Update, active_camera_change)
         //.add_system(attach_free_cam)
         .add_systems(Update, load_default_character)
-        //.add_systems(Update, show_debug_gizmos)
+        .add_systems(Update, (
+            show_debug_gizmos_for_bones,
+            show_debug_gizmos_for_char_hair
+        ))
+        .add_systems(Update, toggle_char_mesh_visibility.run_if(input_just_pressed(KeyCode::KeyM)))
+        .add_systems(Update, toggle_play_anims.run_if(input_just_pressed(KeyCode::KeyP)))
         .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load))
         .add_systems(Update, print_trans_hierarchy)
         .run();
@@ -100,11 +106,11 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    commands.spawn((
+    /*commands.spawn((
         Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(1.0)))),
         MeshMaterial3d(materials.add(Color::srgb(0.8, 0.7, 0.6))),
         Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
+    ));*/
 
     commands
         .spawn(Name::new("Flycam 1"))
@@ -251,7 +257,7 @@ fn print_trans_hierarchy(
     key_input: Res<ButtonInput<KeyCode>>,
     root_query: Query<Entity, With<MiloRoot>>,
     milo_query: Query<Entity, With<MiloObject>>,
-    trans_query: Query<(Entity, Option<&Name>, Option<&Children>), With<Transform>>,
+    trans_query: Query<(Entity, Option<&Name>, Option<&Children>)>,
 ) {
     let show_hierarchy = key_input.any_just_released([KeyCode::KeyH]);
 
@@ -330,7 +336,7 @@ fn load_default_character(
     // Load character
     scene_events_writer.write(
         LoadMiloSceneWithCommands(
-            "char/alterna1/og/alterna1_ui.milo".into(),
+            "char/rock2/og/rock2_ui.milo".into(),
             //"char/grim/og/grim_ui.milo".into(),
             |commands| {
                 commands.insert(SelectedCharacter);
@@ -422,7 +428,7 @@ fn set_placer_as_char_parent(
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     //mut scene_events_reader: EventReader<LoadMiloSceneComplete>,
     state: Res<MiloState>,
-    char_objects_query: Query<(Entity, Option<&ChildOf>, &MiloObject), Added<SelectedCharacter>>,
+    char_objects_query: Query<(Entity, Option<&ChildOf>, &MiloObject), (Added<SelectedCharacter>, Without<CustomParent>, Without<ParentOverride>)>,
     placer_query: Query<Entity, With<MiloBandPlacer>>,
 ) {
     let Ok(placer_entity) = placer_query.single() else {
@@ -436,7 +442,7 @@ fn set_placer_as_char_parent(
     // Load anim
     scene_events_writer.write(
         LoadMiloSceneWithCommands(
-            "char/alterna1/anims/alterna1_ui.milo".into(),
+            "char/rock1/anims/rock1_ui.milo".into(),
             |commands| {
                 commands.insert(SelectedAnimation);
             }
@@ -604,11 +610,13 @@ fn play_anim_after_load(
     log::debug!("Playing character animation!");
 }
 
-fn show_debug_gizmos(
+fn show_debug_gizmos_for_bones(
     mut gizmos: Gizmos,
     bones_query: Query<(Entity, &GlobalTransform, Option<&ChildOf>), (With<MiloBone>, With<SelectedCharacter>)>,
 ) {
     use bevy::color::palettes::css::*;
+
+    //return;
 
     for (_, trans, parent) in bones_query.iter() {
         let pos = trans.translation();
@@ -628,5 +636,83 @@ fn show_debug_gizmos(
         };
 
         gizmos.line(parent_trans.translation(), pos, BLUE);
+    }
+}
+
+fn show_debug_gizmos_for_char_hair(
+    mut gizmos: Gizmos,
+    hair_strands_query: Query<(&Name, &GlobalTransform, Option<&ChildOf>), (With<MiloCharHair>, With<SelectedCharacter>)>,
+) {
+    use bevy::color::palettes::css::*;
+
+    for (name, trans, parent) in hair_strands_query.iter() {
+        //log::debug!("Strand: {}", name.as_str());
+
+        let pos = trans.translation();
+        //let next_pos = trans.mul_transform(Transform::from_translation(Vec3::splat(5.0))).translation();
+
+        let is_parent_hair = parent
+            .map(|&ChildOf(p)| hair_strands_query.contains(p))
+            .unwrap_or_default();
+
+        //gizmos.sphere(pos, 1.0, if is_parent_hair { RED } else { ORANGE });
+
+        //gizmos.arrow(pos, next_pos, BLUE);
+        //gizmos.axes(*trans, 1.0);
+
+        let Some(ChildOf(parent)) = parent else {
+            continue;
+        };
+
+        let Ok((_, parent_trans, _)) = hair_strands_query.get(*parent) else {
+            continue;
+        };
+
+        gizmos.line(parent_trans.translation(), pos, PURPLE);
+    }
+}
+
+fn toggle_char_mesh_visibility(
+    mut hide_meshes: Local<bool>,
+    mut char_mesh_query: Query<&mut Visibility, (With<MiloMesh>, With<SelectedCharacter>)>,
+) {
+    *hide_meshes = !*hide_meshes;
+
+    for mut mesh_visibility in char_mesh_query.iter_mut() {
+        *mesh_visibility = match *hide_meshes {
+            true => Visibility::Hidden,
+            _ => Visibility::Inherited,
+        }
+    }
+
+    log::info!("Toggle hide meshes: {}", if *hide_meshes { "hidden" } else { "visible" });
+}
+
+fn toggle_play_anims(
+    mut anims_paused: Local<bool>,
+    mut commands: Commands,
+    mut anim_player_query: Query<&mut AnimationPlayer>,
+    rigid_body_query: Query<Entity, With<RigidBody>>,
+) {
+    for mut anim_player in anim_player_query.iter_mut() {
+        if *anims_paused {
+            anim_player.resume_all();
+            for rigid_body_entity in rigid_body_query.iter() {
+                commands
+                    .entity(rigid_body_entity)
+                    .remove::<RigidBodyDisabled>();
+            }
+        } else {
+            anim_player.pause_all();
+            for rigid_body_entity in rigid_body_query.iter() {
+                commands
+                    .entity(rigid_body_entity)
+                    .insert(RigidBodyDisabled)
+                    .insert(Velocity::zero());
+            }
+        }
+
+        *anims_paused = !*anims_paused;
+        log::info!("Toggle animations: {}", if *anims_paused { "paused" } else { "playing" });
     }
 }

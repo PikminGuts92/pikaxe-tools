@@ -8,6 +8,7 @@ edition.workspace = true
 bevy = { workspace = true }
 bevy_fly_camera = { workspace = true }
 bevy_infinite_grid = { workspace = true }
+bevy_rapier3d = { workspace = true }
 clap = { workspace = true }
 pikaxe = { workspace = true }
 pikaxe_bevy = { path = "../../core/pikaxe_bevy" }
