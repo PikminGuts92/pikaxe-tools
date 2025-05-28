@@ -6,7 +6,7 @@ edition.workspace = true
 
 [dependencies]
 bevy = { workspace = true }
-bevy_egui = { version = "0.34.1", features = [ "immutable_ctx" ] }
+bevy_egui = { workspace = true }
 bevy_fly_camera = { workspace = true }
 bevy_infinite_grid = { workspace = true }
 egui_extras = { version = "0.31.1", features = [ "svg" ] }

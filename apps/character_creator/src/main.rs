@@ -2,8 +2,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod args;
+mod gui;
+mod resources;
 
 use args::*;
+use gui::GuiPlugin;
+use resources::*;
+
 use bevy::{animation::{animated_field, AnimationTarget, AnimationTargetId}, input::common_conditions::input_just_pressed, log::{info, LogPlugin}, pbr::wireframe::WireframePlugin, prelude::*};
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_infinite_grid::{InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
@@ -16,7 +21,7 @@ const _PROJECT_NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Component)]
-pub struct SelectedCharacter;
+pub struct SelectedCharacterComponent; // TODO: Rename to something else
 
 #[derive(Component)]
 pub struct SelectedAnimation;
@@ -58,11 +63,17 @@ fn main() {
         })*/
         .insert_resource(ClearColor(Color::BLACK))
         //.insert_resource(Msaa::Sample4)
+
+        // Shared resources
+        .insert_resource(SelectedCharacter::default())
+        .insert_resource(SelectedCharacterOptions::default())
+
         .add_plugins(MiloPlugin {
             ark_path: Some(args.ark_path.into()),
             default_outfit: args.default_outfit,
             ..Default::default()
         })
+        .add_plugins(GuiPlugin)
         .insert_resource(CharacterAnimations::default())
         .add_plugins(FlyCameraPlugin)
         .add_plugins(InfiniteGridPlugin)
@@ -339,7 +350,7 @@ fn load_default_character(
             "char/rock2/og/rock2_ui.milo".into(),
             //"char/grim/og/grim_ui.milo".into(),
             |commands| {
-                commands.insert(SelectedCharacter);
+                commands.insert(SelectedCharacterComponent);
             }
         )
     );
@@ -428,7 +439,7 @@ fn set_placer_as_char_parent(
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     //mut scene_events_reader: EventReader<LoadMiloSceneComplete>,
     state: Res<MiloState>,
-    char_objects_query: Query<(Entity, Option<&ChildOf>, &MiloObject), (Added<SelectedCharacter>, Without<CustomParent>, Without<ParentOverride>)>,
+    char_objects_query: Query<(Entity, Option<&ChildOf>, &MiloObject), (Added<SelectedCharacterComponent>, Without<CustomParent>, Without<ParentOverride>)>,
     placer_query: Query<Entity, With<MiloBandPlacer>>,
 ) {
     let Ok(placer_entity) = placer_query.single() else {
@@ -612,7 +623,7 @@ fn play_anim_after_load(
 
 fn show_debug_gizmos_for_bones(
     mut gizmos: Gizmos,
-    bones_query: Query<(Entity, &GlobalTransform, Option<&ChildOf>), (With<MiloBone>, With<SelectedCharacter>)>,
+    bones_query: Query<(Entity, &GlobalTransform, Option<&ChildOf>), (With<MiloBone>, With<SelectedCharacterComponent>)>,
 ) {
     use bevy::color::palettes::css::*;
 
@@ -641,7 +652,7 @@ fn show_debug_gizmos_for_bones(
 
 fn show_debug_gizmos_for_char_hair(
     mut gizmos: Gizmos,
-    hair_strands_query: Query<(&Name, &GlobalTransform, Option<&ChildOf>), (With<MiloCharHair>, With<SelectedCharacter>)>,
+    hair_strands_query: Query<(&Name, &GlobalTransform, Option<&ChildOf>), (With<MiloCharHair>, With<SelectedCharacterComponent>)>,
 ) {
     use bevy::color::palettes::css::*;
 
@@ -674,7 +685,7 @@ fn show_debug_gizmos_for_char_hair(
 
 fn toggle_char_mesh_visibility(
     mut hide_meshes: Local<bool>,
-    mut char_mesh_query: Query<&mut Visibility, (With<MiloMesh>, With<SelectedCharacter>)>,
+    mut char_mesh_query: Query<&mut Visibility, (With<MiloMesh>, With<SelectedCharacterComponent>)>,
 ) {
     *hide_meshes = !*hide_meshes;
 

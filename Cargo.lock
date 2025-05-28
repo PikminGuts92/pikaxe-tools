@@ -1813,6 +1813,7 @@ name = "character_creator"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_egui",
  "bevy_fly_camera",
  "bevy_infinite_grid",
  "bevy_rapier3d",
