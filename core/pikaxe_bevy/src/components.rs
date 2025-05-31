@@ -70,6 +70,9 @@ pub struct CloneWorldTransform(pub Entity);
 #[derive(Component)]
 pub struct PhysicsControlledBone;
 
+#[derive(Component)]
+pub struct OriginalTransform(pub Transform);
+
 /*fn add_milo_object(
     mut world: DeferredWorld,
     HookContext { entity, .. }: HookContext,

@@ -372,7 +372,7 @@ fn change_animation(
     selected_animation: Res<SelectedAnimation>,
     selcted_animation_options: Res<SelectedAnimationOptions>,
     selected_animation_query: Query<Entity, With<SelectedAnimationComponent>>,
-    current_anim_targets_query: Query<Entity, With<AnimationTarget>>,
+    current_anim_targets_query: Query<(Entity, Option<&OriginalTransform>), With<AnimationTarget>>,
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
 ) {
     // Clear existing animation
@@ -383,10 +383,17 @@ fn change_animation(
     }
 
     // Clean anim targets
-    for anim_target_entity in current_anim_targets_query.iter() {
+    for (anim_target_entity, orig_trans) in current_anim_targets_query.iter() {
         commands
             .entity(anim_target_entity)
             .remove::<AnimationTarget>();
+
+        // Reset local transform
+        if let Some(&OriginalTransform(trans)) = orig_trans {
+            commands
+                .entity(anim_target_entity)
+                .insert(trans);
+        }
     }
 
     let Some((shortname, _)) = selected_animation.0.and_then(|s| selcted_animation_options.0.get(s)) else {

@@ -669,6 +669,7 @@ fn process_milo_scene_events(
                         .spawn((
                             Name::new(group.name.to_owned()),
                             Transform::from_matrix(mat),
+                            OriginalTransform(Transform::from_matrix(mat)),
                             Visibility::Inherited,
                             MiloObject {
                                 id: obj_keys[i],
@@ -790,6 +791,7 @@ fn process_milo_scene_events(
                             Mesh3d(meshes.add(bevy_mesh)),
                             MeshMaterial3d(mat_handle),
                             Transform::from_matrix(mat),
+                            OriginalTransform(Transform::from_matrix(mat)),
                             Visibility::Inherited,
                             MiloObject {
                                 id: obj_keys[i],
@@ -857,6 +859,7 @@ fn process_milo_scene_events(
                         .spawn((
                             Name::new(trans.name.to_owned()),
                             Transform::from_matrix(mat),
+                            OriginalTransform(Transform::from_matrix(mat)),
                             Visibility::Inherited,
                             MiloObject {
                                 id: obj_keys[i],
