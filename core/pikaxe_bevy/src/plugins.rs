@@ -219,7 +219,6 @@ fn process_milo_scene_events(
 
     // TODO: Check if path ends in .milo
     for (milo_path, callback) in scene_events {
-        let start_idx = state.objects.len();
         log::debug!("Loading Scene: \"{}\"", milo_path);
 
         let (sys_info, mut milo) = state.open_milo(&milo_path).unwrap();
@@ -365,6 +364,9 @@ fn process_milo_scene_events(
             .collect::<HashMap<_, _>>();
 
         let mut trans_map = HashMap::new(); // TODO: Clean this up
+        let obj_keys = (0..milo.get_entries().len())
+            .map(|_| state.get_next_obj_key())
+            .collect::<Vec<_>>();
 
         for (i, obj) in milo.get_entries().iter().enumerate() {
             match obj {
@@ -377,7 +379,7 @@ fn process_milo_scene_events(
                             Transform::from_matrix(mat),
                             Visibility::Inherited,
                             MiloObject {
-                                id: (start_idx + i) as u32,
+                                id: obj_keys[i],
                                 name: band_placer.name.to_owned(),
                                 dir: obj_dir_name.to_owned(),
                             },
@@ -418,7 +420,7 @@ fn process_milo_scene_events(
                             ), //.looking_at(Vec3::ZERO, Vec3::Z),
                             Visibility::Inherited,
                             MiloObject {
-                                id: (start_idx + i) as u32,
+                                id: obj_keys[i],
                                 name: cam.name.to_owned(),
                                 dir: obj_dir_name.to_owned(),
                             },
@@ -525,7 +527,7 @@ fn process_milo_scene_events(
                         .spawn((
                             Name::new(ccs.name.to_owned()),
                             MiloObject {
-                                id: (start_idx + i) as u32,
+                                id: obj_keys[i],
                                 name: ccs.name.to_owned(),
                                 dir: obj_dir_name.to_owned(),
                             },
@@ -568,7 +570,7 @@ fn process_milo_scene_events(
                                 ParentOverride,
                                 //ChildOf(root_entity),
                                 MiloObject {
-                                    id: (start_idx + i) as u32,
+                                    id: obj_keys[i],
                                     name: ch.name.to_owned(),
                                     dir: obj_dir_name.to_owned(),
                                 },
@@ -606,7 +608,7 @@ fn process_milo_scene_events(
                                     //ChildOf(point_parent_entity),
                                     ParentOverride,
                                     MiloObject {
-                                        id: (start_idx + i) as u32,
+                                        id: obj_keys[i],
                                         name: ch.name.to_owned(),
                                         dir: obj_dir_name.to_owned(),
                                     },
@@ -669,7 +671,7 @@ fn process_milo_scene_events(
                             Transform::from_matrix(mat),
                             Visibility::Inherited,
                             MiloObject {
-                                id: (start_idx + i) as u32,
+                                id: obj_keys[i],
                                 name: group.name.to_owned(),
                                 dir: obj_dir_name.to_owned(),
                             }
@@ -790,7 +792,7 @@ fn process_milo_scene_events(
                             Transform::from_matrix(mat),
                             Visibility::Inherited,
                             MiloObject {
-                                id: (start_idx + i) as u32,
+                                id: obj_keys[i],
                                 name: mesh.name.to_owned(),
                                 dir: obj_dir_name.to_owned(),
                             },
@@ -857,7 +859,7 @@ fn process_milo_scene_events(
                             Transform::from_matrix(mat),
                             Visibility::Inherited,
                             MiloObject {
-                                id: (start_idx + i) as u32,
+                                id: obj_keys[i],
                                 name: trans.name.to_owned(),
                                 dir: obj_dir_name.to_owned(),
                             },
@@ -899,7 +901,11 @@ fn process_milo_scene_events(
         }
 
         milos_updated = true;
-        state.objects.append(milo.get_entries_mut());
+
+        for (milo_entry, key) in milo.get_entries_mut().drain(..).zip(obj_keys) {
+            state.objects.insert(key, milo_entry);
+        }
+
         scene_events_writer.write(LoadMiloSceneComplete(milo_path.to_owned()));
     }
 
@@ -923,7 +929,7 @@ fn update_milo_object_parents(
 
     let obj_entities = milo_objects_query
         .iter()
-        .map(|(en, mo, hpo, cp)| (en, &state.objects[mo.id as usize], hpo, cp))
+        .map(|(en, mo, hpo, cp)| (en, state.objects.get(&mo.id).unwrap(), hpo, cp))
         .collect::<Vec<_>>();
 
     /*let (entity_map, children_map) = obj_entities
@@ -1034,7 +1040,7 @@ fn update_skinned_meshes(
             .filter(|(_, mo)| mo.dir.eq(obj_dir_name))
             .map(|(_, mo)| {
                 // TODO: Support GH1-style bones
-                let trans = match state.objects.get(mo.id as usize) {
+                let trans = match state.objects.get(&mo.id) {
                     Some(Object::Trans(trans)) => trans as &dyn Trans,
                     _ => unreachable!("Bone object not found"),
                 };
@@ -1061,7 +1067,7 @@ fn update_skinned_meshes(
 
         for (en, Mesh3d(mesh_handle), mo) in mesh_query.iter() {
             let mesh = meshes.get_mut(mesh_handle).unwrap();
-            let milo_mesh = match state.objects.get(mo.id as usize) {
+            let milo_mesh = match state.objects.get(&mo.id) {
                 Some(Object::Mesh(mesh)) => mesh,
                 _ => unreachable!("Mesh object not found"),
             };

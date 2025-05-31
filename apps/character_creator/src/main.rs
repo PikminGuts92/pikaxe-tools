@@ -21,10 +21,10 @@ const _PROJECT_NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Component)]
-pub struct SelectedCharacterComponent; // TODO: Rename to something else
+pub struct SelectedCharacterComponent; // TODO: Rename to something else (same for selected anim component)
 
 #[derive(Component)]
-pub struct SelectedAnimation;
+pub struct SelectedAnimationComponent;
 
 /*#[derive(Component)]
 pub enum HelpText {
@@ -67,6 +67,8 @@ fn main() {
         // Shared resources
         .insert_resource(SelectedCharacter::default())
         .insert_resource(SelectedCharacterOptions::default())
+        .insert_resource(SelectedAnimation::default())
+        .insert_resource(SelectedAnimationOptions::default())
 
         .add_plugins(MiloPlugin {
             ark_path: Some(args.ark_path.into()),
@@ -95,6 +97,9 @@ fn main() {
 
         // Update char
         .add_systems(Update, change_character.run_if(resource_changed::<SelectedCharacter>))
+
+        // Update anim
+        .add_systems(Update, change_animation.run_if(resource_changed::<SelectedAnimation>))
 
         .run();
 }
@@ -337,13 +342,11 @@ fn change_character(
     mut commands: Commands,
     selected_character: Res<SelectedCharacter>,
     selcted_character_options: Res<SelectedCharacterOptions>,
-    selected_characer_query: Query<Entity, With<SelectedCharacterComponent>>,
+    selected_character_query: Query<Entity, With<SelectedCharacterComponent>>,
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
 ) {
-    //selected_character.is
-
     // Clear existing character
-    for char_entity in selected_characer_query.iter() {
+    for char_entity in selected_character_query.iter() {
         commands
             .entity(char_entity)
             .despawn();
@@ -359,6 +362,43 @@ fn change_character(
             format!("char/{shortname}/og/{shortname}{}.milo", if *is_guitarist { "_ui" } else { "" }),
             |commands| {
                 commands.insert(SelectedCharacterComponent);
+            }
+        )
+    );
+}
+
+fn change_animation(
+    mut commands: Commands,
+    selected_animation: Res<SelectedAnimation>,
+    selcted_animation_options: Res<SelectedAnimationOptions>,
+    selected_animation_query: Query<Entity, With<SelectedAnimationComponent>>,
+    current_anim_targets_query: Query<Entity, With<AnimationTarget>>,
+    mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
+) {
+    // Clear existing animation
+    for anim_entity in selected_animation_query.iter() {
+        commands
+            .entity(anim_entity)
+            .despawn();
+    }
+
+    // Clean anim targets
+    for anim_target_entity in current_anim_targets_query.iter() {
+        commands
+            .entity(anim_target_entity)
+            .remove::<AnimationTarget>();
+    }
+
+    let Some((shortname, _)) = selected_animation.0.and_then(|s| selcted_animation_options.0.get(s)) else {
+        return;
+    };
+
+    // Load animation
+    scene_events_writer.write(
+        LoadMiloSceneWithCommands(
+            format!("char/{shortname}/anims/{shortname}_ui.milo"),
+            |commands| {
+                commands.insert(SelectedAnimationComponent);
             }
         )
     );
@@ -465,9 +505,11 @@ fn set_placer_as_char_parent(
     mut commands: Commands,
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     //mut scene_events_reader: EventReader<LoadMiloSceneComplete>,
+    mut selected_animation: ResMut<SelectedAnimation>,
     state: Res<MiloState>,
     char_objects_query: Query<(Entity, Option<&ChildOf>, &MiloObject), (Added<SelectedCharacterComponent>, Without<CustomParent>, Without<ParentOverride>)>,
     placer_query: Query<Entity, With<MiloBandPlacer>>,
+    root_anim_query: Option<Single<(), (With<MiloRoot>, With<AnimationPlayer>)>>,
 ) {
     let Ok(placer_entity) = placer_query.single() else {
         return
@@ -478,14 +520,10 @@ fn set_placer_as_char_parent(
     }
 
     // Load anim
-    scene_events_writer.write(
-        LoadMiloSceneWithCommands(
-            "char/rock1/anims/rock1_ui.milo".into(),
-            |commands| {
-                commands.insert(SelectedAnimation);
-            }
-        )
-    );
+    if root_anim_query.is_none() {
+        // Only reload animation if not already set
+        selected_animation.0 = Some(7); // Judy Nails
+    }
 
     // TODO: Remove when Character entry can be parsed
     /*let root_entity = root_query.single();
@@ -517,7 +555,7 @@ fn set_placer_as_char_parent(
     for (entity, _parent, obj) in char_objects_query.iter() {
         let obj_dir_name = obj.dir.as_str();
 
-        let Some(obj) = state.objects.get(obj.id as usize) else {
+        let Some(obj) = state.objects.get(&obj.id) else {
             continue;
         };
 
@@ -574,7 +612,7 @@ fn play_anim_after_load(
     mut commands: Commands,
     state: Res<MiloState>,
     mut char_anims: ResMut<CharacterAnimations>,
-    milo_anims_query: Query<(Entity, &MiloCharClip, &MiloObject), Added<SelectedAnimation>>,
+    milo_anims_query: Query<(Entity, &MiloCharClip, &MiloObject), Added<SelectedAnimationComponent>>,
     trans_query: Query<(Entity, &Name), (With<MiloObject>, With<Transform>)>,
     root_query: Single<Entity, With<MiloRoot>>,
     animations: Res<Assets<AnimationClip>>,
@@ -646,6 +684,13 @@ fn play_anim_after_load(
         ));
 
     log::debug!("Playing character animation!");
+}
+
+fn update_anim_targets(
+    //query: Query<SelectedCharacterComponent>,
+    trans_query: Query<(Entity, &Name), (With<MiloObject>, With<Transform>)>,
+) {
+    // Check if either selected animation changed or selected character changed
 }
 
 fn show_debug_gizmos_for_bones(

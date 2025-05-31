@@ -36,7 +36,26 @@ impl Default for SelectedCharacterOptions {
     }
 }
 
-#[derive(Resource)]
-pub struct SelectedAnimation {
+#[derive(Resource, Default)]
+pub struct SelectedAnimation(pub Option<usize>);
 
+#[derive(Resource)]
+pub struct SelectedAnimationOptions(pub Vec<(String, String)>); // shortname, display_name
+
+impl Default for SelectedAnimationOptions {
+    fn default() -> Self {
+        Self(vec![
+            ("metal1".into(), "Axel Steel".into()),
+            ("rock1".into(), "Casey Lynch".into()),
+            ("classic".into(), "Clive Winston".into()),
+            ("rockabill1".into(), "Eddie Knox".into()),
+            ("grim".into(), "Grim".into()),
+            ("glam1".into(), "Izzy Sparks".into()),
+            ("punk1".into(), "Johnny Napalm".into()),
+            ("alterna1".into(), "Judy Nails".into()),
+            ("deathmetal1".into(), "Lars Ümlaüt".into()),
+            ("goth1".into(), "Pandora".into()),
+            ("funk1".into(), "Xavier Stone".into()),
+        ])
+    }
 }

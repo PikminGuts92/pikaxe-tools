@@ -9,7 +9,8 @@ use std::collections::HashMap;
 #[derive(Default, Resource)]
 pub struct MiloState {
     pub ark: Option<Ark>,
-    pub objects: Vec<Object>,
+    pub objects: HashMap<u32, Object>,
+    pub next_obj_key: u32,
 }
 
 impl MiloState {
@@ -30,6 +31,12 @@ impl MiloState {
         obj_dir.unpack_entries(&system_info).ok()?;
 
         Some((system_info, obj_dir))
+    }
+
+    pub fn get_next_obj_key(&mut self) -> u32 {
+        let next_key = self.next_obj_key;
+        self.next_obj_key += 1;
+        next_key
     }
 }
 

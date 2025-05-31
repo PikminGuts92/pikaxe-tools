@@ -29,12 +29,14 @@ fn render_toolbar(
     egui_ctx_query: Single<&EguiContext, With<PrimaryWindow>>,
     mut selected_character: ResMut<SelectedCharacter>,
     selected_character_options: Res<SelectedCharacterOptions>,
+
+    mut selected_animation: ResMut<SelectedAnimation>,
+    selected_animation_options: Res<SelectedAnimationOptions>,
 ) {
     let ctx = egui_ctx_query.into_inner().get();
 
     egui::TopBottomPanel::bottom("panel_bottom")
         .show(ctx, |ui| {
-            //egui::Label::new("")
             ui.horizontal(|ui| {
                 ui.label("Character:").on_hover_text("Choose selected character");
 
@@ -51,6 +53,30 @@ fn render_toolbar(
                             };
                         }
                     });
+
+                ui.label("Animation:").on_hover_text("Choose selected animation");
+
+                egui::ComboBox::from_id_salt("cb_sel_animation")
+                    .selected_text(selected_animation.0
+                        .and_then(|s| selected_animation_options.0.get(s)).map(|(_, d)| d.as_str()).unwrap_or("(None)"))
+                    .show_ui(ui, |ui| {
+                        // TODO: Refactor this to not rely on copy
+                        let mut selected_animation_copy = selected_animation.0.clone();
+
+                        for (i, (_short_name, display_name)) in selected_animation_options.0.iter().enumerate() {
+                            if ui.selectable_value(&mut selected_animation_copy, Some(i), display_name).changed() {
+                                selected_animation.0 = selected_animation_copy;
+                            };
+                        }
+                    });
             });
         });
+}
+
+fn update_selectors(
+    egui_ctx_query: Single<&EguiContext, With<PrimaryWindow>>,
+) {
+    let ctx = egui_ctx_query.into_inner().get();
+
+    //ctx.ui
 }
