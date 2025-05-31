@@ -384,6 +384,7 @@ fn change_animation(
 
     // Clean anim targets
     for (anim_target_entity, orig_trans) in current_anim_targets_query.iter() {
+        // TODO: Update query to only fetch w/ original transform?
         commands
             .entity(anim_target_entity)
             .remove::<AnimationTarget>();
@@ -530,6 +531,9 @@ fn set_placer_as_char_parent(
     if root_anim_query.is_none() {
         // Only reload animation if not already set
         selected_animation.0 = Some(7); // Judy Nails
+    } else {
+        // Hack until I figure out why swapping char doesn't work without replacing anim
+        selected_animation.0 = selected_animation.0;
     }
 
     // TODO: Remove when Character entry can be parsed

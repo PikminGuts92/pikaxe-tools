@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use bevy::animation::{animated_field, AnimationTargetId};
+use bevy::animation::{animated_field, AnimationTarget, AnimationTargetId};
 use bevy::image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::prelude::*;
 use bevy::render::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
@@ -117,6 +117,7 @@ fn set_clone_world_transform(
 fn init_world(
     mut commands: Commands,
 ) {
+    /*
     // TODO: Move to exe project?
     // Ground
     let ground_size = 1000.1;
@@ -174,7 +175,7 @@ fn init_world(
         .id();
 
     // Translate to bevy coordinate system
-    //let scale_mat = Mat4::from_scale(Vec3::new(0.1, 0.1, 0.1));
+    //let scale_mat = Mat4::from_scale(Vec3::new(0.1, 0.1, 0.1));*/
     let trans = Transform::from_matrix(MILO_TO_BEVY_MATRIX);
 
     commands
@@ -801,7 +802,11 @@ fn process_milo_scene_events(
                             MiloMesh {
                                 verts: mesh.vertices.len(),
                                 faces: mesh.faces.len()
-                            }
+                            },
+                            /*AnimationTarget {
+                                id:  AnimationTargetId::from_name(&mesh.name.to_owned().into()),
+                                player: root_entity,
+                            }*/
                         ))
                         .id();
 
@@ -868,7 +873,11 @@ fn process_milo_scene_events(
                             },
                             //RigidBody::Dynamic,
                             //LockedAxes::TRANSLATION_LOCKED,
-                            MiloBone
+                            MiloBone,
+                            /*AnimationTarget {
+                                id:  AnimationTargetId::from_name(&trans.name.to_owned().into()),
+                                player: root_entity,
+                            }*/
                         ))
                         .id();
 
