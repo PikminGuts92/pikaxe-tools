@@ -84,14 +84,18 @@ fn main() {
         //.add_systems(Update, active_camera_change)
         //.add_system(attach_free_cam)
         .add_systems(Update, load_default_character)
-        .add_systems(Update, (
+        /*.add_systems(Update, (
             show_debug_gizmos_for_bones,
             show_debug_gizmos_for_char_hair
-        ))
+        ))*/
         .add_systems(Update, toggle_char_mesh_visibility.run_if(input_just_pressed(KeyCode::KeyM)))
         .add_systems(Update, toggle_play_anims.run_if(input_just_pressed(KeyCode::KeyP)))
         .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load))
         .add_systems(Update, print_trans_hierarchy)
+
+        // Update char
+        .add_systems(Update, change_character.run_if(resource_changed::<SelectedCharacter>))
+
         .run();
 }
 
@@ -329,11 +333,43 @@ fn print_children(
     }
 }*/
 
+fn change_character(
+    mut commands: Commands,
+    selected_character: Res<SelectedCharacter>,
+    selcted_character_options: Res<SelectedCharacterOptions>,
+    selected_characer_query: Query<Entity, With<SelectedCharacterComponent>>,
+    mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
+) {
+    //selected_character.is
+
+    // Clear existing character
+    for char_entity in selected_characer_query.iter() {
+        commands
+            .entity(char_entity)
+            .despawn();
+    }
+
+    let Some((shortname, _, is_guitarist)) = selected_character.0.and_then(|s| selcted_character_options.0.get(s)) else {
+        return;
+    };
+
+    // Load character
+    scene_events_writer.write(
+        LoadMiloSceneWithCommands(
+            format!("char/{shortname}/og/{shortname}{}.milo", if *is_guitarist { "_ui" } else { "" }),
+            |commands| {
+                commands.insert(SelectedCharacterComponent);
+            }
+        )
+    );
+}
+
 fn load_default_character(
     mut commands: Commands,
     mut scene_events_writer: EventWriter<LoadMiloSceneWithCommands>,
     mut animations: ResMut<Assets<AnimationClip>>,
     mut animation_graphs: ResMut<Assets<AnimationGraph>>,
+    mut selected_character: ResMut<SelectedCharacter>,
     placer_query: Query<(Entity, &Name), Added<MiloBandPlacer>>,
     root_query: Single<Entity, With<MiloRoot>>,
     _state: Res<MiloState>,
@@ -344,16 +380,7 @@ fn load_default_character(
 
     let root_entity = root_query.into_inner();
 
-    // Load character
-    scene_events_writer.write(
-        LoadMiloSceneWithCommands(
-            "char/rock2/og/rock2_ui.milo".into(),
-            //"char/grim/og/grim_ui.milo".into(),
-            |commands| {
-                commands.insert(SelectedCharacterComponent);
-            }
-        )
-    );
+    selected_character.0 = Some(12); // Judy Nails
 
     /*let Some((_info, anims_obj_dir)) = state.open_milo("char/alterna1/anims/alterna1_ui.milo") else {
         return

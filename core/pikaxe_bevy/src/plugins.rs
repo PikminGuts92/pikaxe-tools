@@ -1129,15 +1129,23 @@ fn update_skinned_meshes_ik(
             .map(|(en, mo)| (mo.name.as_str(), en))
             .collect::<HashMap<_, _>>();
 
-        let hand_l = bone_map.get("bone_L-hand.mesh").unwrap();
-        let foretwist2_l = bone_map.get("bone_L-foreTwist2.mesh").unwrap();
+        //let hand_l = bone_map.get("bone_L-hand.mesh").unwrap();
+        //let foretwist2_l = bone_map.get("bone_L-foreTwist2.mesh").unwrap();
 
+        // TODO: Clean all this up into something nicer
+        let Some(upperarm_l) = bone_map.get("bone_L-upperArm.mesh") else {
+            continue;
+        };
+        let Some(uppertwist_l) = bone_map.get("bone_L-upperTwist1.mesh") else {
+            continue;
+        };
 
-        let upperarm_l = bone_map.get("bone_L-upperArm.mesh").unwrap();
-        let uppertwist_l = bone_map.get("bone_L-upperTwist1.mesh").unwrap();
-
-        let forearm_l = bone_map.get("bone_L-foreArm.mesh").unwrap();
-        let foretwist1_l = bone_map.get("bone_L-foreTwist1.mesh").unwrap();
+        let Some(forearm_l) = bone_map.get("bone_L-foreArm.mesh") else {
+            continue;
+        };
+        let Some(foretwist1_l) = bone_map.get("bone_L-foreTwist1.mesh") else {
+            continue;
+        };
 
         commands
             .entity(*uppertwist_l)
@@ -1147,11 +1155,19 @@ fn update_skinned_meshes_ik(
             .entity(*foretwist1_l)
             .insert(CloneTransform(*forearm_l));
 
-        let upperarm_r = bone_map.get("bone_R-upperArm.mesh").unwrap();
-        let uppertwist_r = bone_map.get("bone_R-upperTwist1.mesh").unwrap();
+        let Some(upperarm_r) = bone_map.get("bone_R-upperArm.mesh") else {
+            continue;
+        };
+        let Some(uppertwist_r) = bone_map.get("bone_R-upperTwist1.mesh") else {
+            continue;
+        };
 
-        let forearm_r = bone_map.get("bone_R-foreArm.mesh").unwrap();
-        let foretwist1_r = bone_map.get("bone_R-foreTwist1.mesh").unwrap();
+        let Some(forearm_r) = bone_map.get("bone_R-foreArm.mesh") else {
+            continue;
+        };
+        let Some(foretwist1_r) = bone_map.get("bone_R-foreTwist1.mesh") else {
+            continue;
+        };
 
         commands
             .entity(*uppertwist_r)

@@ -40,13 +40,15 @@ fn render_toolbar(
 
                 egui::ComboBox::from_id_salt("cb_sel_character")
                     .selected_text(selected_character.0
-                        .and_then(|s| selected_character_options.0.get(s)).map(|(_, d)| d.as_str()).unwrap_or("(None)"))
+                        .and_then(|s| selected_character_options.0.get(s)).map(|(_, d, _)| d.as_str()).unwrap_or("(None)"))
                     .show_ui(ui, |ui| {
-                        //ui.selectable_value(&mut character, "alterna1", "Judy Nails");
-                        //ui.selectable_value(&mut character, "grim", "Grim Ripper");
+                        // TODO: Refactor this to not rely on copy
+                        let mut selected_character_copy = selected_character.0.clone();
 
-                        for (i, (_short_name, display_name)) in selected_character_options.0.iter().enumerate() {
-                            ui.selectable_value(&mut selected_character.0, Some(i), display_name);
+                        for (i, (_short_name, display_name, _)) in selected_character_options.0.iter().enumerate() {
+                            if ui.selectable_value(&mut selected_character_copy, Some(i), display_name).changed() {
+                                selected_character.0 = selected_character_copy;
+                            };
                         }
                     });
             });
