@@ -92,7 +92,7 @@ fn main() {
         ))*/
         .add_systems(Update, toggle_char_mesh_visibility.run_if(input_just_pressed(KeyCode::KeyM)))
         .add_systems(Update, toggle_play_anims.run_if(input_just_pressed(KeyCode::KeyP)))
-        .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load))
+        .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load, drop_files))
         .add_systems(Update, print_trans_hierarchy)
 
         // Update char
@@ -101,7 +101,7 @@ fn main() {
         // Update anim
         .add_systems(Update, change_animation.run_if(resource_changed::<SelectedAnimation>))
 
-        .add_systems(Update, drop_files)
+        //.add_systems(Update, drop_files)
 
         .run();
 }
@@ -665,9 +665,11 @@ fn play_anim_after_load(
 
     let anim_loop = animations.get(anim_loop_handle).unwrap();
 
+    log::info!("Anim loaded with duration: {}s", anim_loop.duration());
+
     for (entity, name) in trans_query.iter() {
         let trans_target_id = AnimationTargetId::from_name(name);
-        if anim_loop.curves().contains_key(&trans_target_id) {
+        if anim_loop.curves().contains_key(&trans_target_id) {            
             commands
                 .entity(entity)
                 .insert(AnimationTarget {
@@ -816,6 +818,7 @@ fn toggle_play_anims(
 fn drop_files(
     mut drag_drop_events: EventReader<FileDragAndDrop>,
     mut scene_events_writer: EventWriter<LoadMiloObjectsWithCommands>,
+    mut selected_animation: ResMut<SelectedAnimation>,
 ) {
     use pikaxe::model::GltfImporter2;
 
@@ -844,6 +847,8 @@ fn drop_files(
                         commands.insert(SelectedAnimationComponent);
                     }
                 ));
+
+                selected_animation.0 = None; // Clear current anim
             },
             _ => {}
         }
