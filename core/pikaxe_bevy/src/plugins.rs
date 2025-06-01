@@ -11,7 +11,7 @@ use bevy_rapier3d::prelude::*;
 use std::collections::{HashMap, HashSet};
 use futures_lite::future;
 use pikaxe::ark::Ark;
-use pikaxe::scene::{Blend, Matrix, Matrix3, MiloObject as MObject, Object, ObjectDir, ObjectDirBase, RndMesh, Sphere as MiloSphere, Trans, ZMode};
+use pikaxe::scene::{Blend, EncodedSamples, Matrix, Matrix3, MiloObject as MObject, Object, ObjectDir, ObjectDirBase, RndMesh, Sphere as MiloSphere, Trans, ZMode};
 use pikaxe::texture::Bitmap;
 use pikaxe::{Platform, SystemInfo};
 use std::path::PathBuf;
@@ -477,8 +477,14 @@ fn process_milo_scene_events(
                 Object::CharClipSamples(ccs) => {
                     let mut anim_clip = AnimationClip::default();
 
-                    let one_samples = ccs.one.decode_samples(&sys_info);
-                    let full_samples = ccs.full.decode_samples(&sys_info);
+                    let one_samples = match &ccs.one.samples {
+                        EncodedSamples::Uncompressed(unc_samples) => unc_samples,
+                        _ => &ccs.one.decode_samples(&sys_info),
+                    };
+                    let full_samples = match &ccs.full.samples {
+                        EncodedSamples::Uncompressed(unc_samples) => unc_samples,
+                        _ => &ccs.full.decode_samples(&sys_info),
+                    };
 
                     let sample_count = ccs.one.get_sample_count().max(ccs.full.get_sample_count());
 
