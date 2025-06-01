@@ -23,6 +23,9 @@ pub struct LoadMiloSceneWithCommands(pub String, pub fn(&mut EntityCommands));
 pub struct LoadMiloSceneComplete(pub String);
 
 #[derive(Event)]
+pub struct LoadMiloObjectsWithCommands(pub Vec<pikaxe::scene::Object>, pub fn(&mut EntityCommands));
+
+#[derive(Event)]
 pub struct UpdateSkinnedMeshes(pub String);
 
 #[derive(Event)]

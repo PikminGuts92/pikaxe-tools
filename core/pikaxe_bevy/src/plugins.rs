@@ -11,9 +11,9 @@ use bevy_rapier3d::prelude::*;
 use std::collections::{HashMap, HashSet};
 use futures_lite::future;
 use pikaxe::ark::Ark;
-use pikaxe::scene::{Blend, Matrix, Matrix3, MiloObject as MObject, Object, ObjectDir, RndMesh, Sphere as MiloSphere, Trans, ZMode};
+use pikaxe::scene::{Blend, Matrix, Matrix3, MiloObject as MObject, Object, ObjectDir, ObjectDirBase, RndMesh, Sphere as MiloSphere, Trans, ZMode};
 use pikaxe::texture::Bitmap;
-use pikaxe::Platform;
+use pikaxe::{Platform, SystemInfo};
 use std::path::PathBuf;
 
 const MILO_TO_BEVY_MATRIX: Mat4 = Mat4::from_cols_array(&[
@@ -27,6 +27,11 @@ const MILO_TO_BEVY_MATRIX: Mat4 = Mat4::from_cols_array(&[
 pub struct MiloPlugin {
     pub ark_path: Option<PathBuf>,
     pub default_outfit: Option<String>,
+}
+
+enum LoadMilo {
+    FromArkPath(String),
+    FromObjects(Vec<Object>)
 }
 
 impl Plugin for MiloPlugin {
@@ -48,6 +53,7 @@ impl Plugin for MiloPlugin {
         app.add_event::<ClearMiloScene>();
         app.add_event::<LoadMiloScene>();
         app.add_event::<LoadMiloSceneWithCommands>();
+        app.add_event::<LoadMiloObjectsWithCommands>();
         app.add_event::<LoadMiloSceneComplete>();
         app.add_event::<UpdateSkinnedMeshes>();
 
@@ -57,7 +63,7 @@ impl Plugin for MiloPlugin {
         app.add_systems(Startup, init_world);
 
         app.add_systems(Update, (
-            process_milo_scene_events.pipe(update_milo_object_parents),
+            consolidate_milo_scene_events.pipe(process_milo_scene_events).pipe(update_milo_object_parents),
             update_skinned_meshes,
             update_skinned_meshes_ik
         ).chain());
@@ -188,11 +194,29 @@ fn init_world(
         .insert(MiloRoot);
 }
 
+fn consolidate_milo_scene_events(
+    mut scene_events: ResMut<Events<LoadMiloScene>>,
+    mut scene_events_commands:  ResMut<Events<LoadMiloSceneWithCommands>>,
+    mut objects_events_commands:  ResMut<Events<LoadMiloObjectsWithCommands>>,
+) -> Vec<(LoadMilo, Option<fn(&mut EntityCommands)>)> {
+    return scene_events
+        .drain()
+        .map(|LoadMiloScene(p)| (LoadMilo::FromArkPath(p), None))
+        .chain(scene_events_commands
+            .drain()
+            .map(|LoadMiloSceneWithCommands(p, c)| (LoadMilo::FromArkPath(p), Some(c)))
+        )
+        .chain(objects_events_commands
+            .drain()
+            .map(|LoadMiloObjectsWithCommands(o, c)| (LoadMilo::FromObjects(o), Some(c)))
+        )
+        .collect()
+}
+
 // TODO: Move to separate file?
 fn process_milo_scene_events(
+    load_milo_events: In<Vec<(LoadMilo, Option<fn(&mut EntityCommands)>)>>,
     mut commands: Commands,
-    mut scene_events_reader: EventReader<LoadMiloScene>,
-    mut scene_events_reader_commands: EventReader<LoadMiloSceneWithCommands>,
     mut state: ResMut<MiloState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -210,19 +234,29 @@ fn process_milo_scene_events(
 
     let mut milos_updated = false;
 
-    let scene_events = scene_events_reader
-        .read()
-        .map(|LoadMiloScene(p)| (p, None))
-        .chain(scene_events_reader_commands
-            .read()
-            .map(|LoadMiloSceneWithCommands(p, c)| (p, Some(c)))
-        );
+    /*for scene in scene_events_reader.in {
+
+    }*/
 
     // TODO: Check if path ends in .milo
-    for (milo_path, callback) in scene_events {
-        log::debug!("Loading Scene: \"{}\"", milo_path);
+    for (load_milo, callback) in load_milo_events.0 {
+        let (sys_info, mut milo) = match load_milo {
+            LoadMilo::FromArkPath(milo_path) => {
+                log::debug!("Loading Scene: \"{}\"", milo_path);
+                state.open_milo(&milo_path).unwrap()
+            },
+            LoadMilo::FromObjects(milo_objects) => {
+                let sys_info = SystemInfo::default();
+                let milo_obj = ObjectDir::ObjectDir(ObjectDirBase {
+                    entries: milo_objects,
+                    name: String::from("custom"),
+                    dir_type: String::from("Object"),
+                    sub_dirs: Vec::new(),
+                });
 
-        let (sys_info, mut milo) = state.open_milo(&milo_path).unwrap();
+                (sys_info, milo_obj)
+            }
+        };
 
         let (obj_dir_name, obj_dir_type) = match &milo {
             ObjectDir::ObjectDir(dir) => (&dir.name, &dir.dir_type)
@@ -918,7 +952,8 @@ fn process_milo_scene_events(
             state.objects.insert(key, milo_entry);
         }
 
-        scene_events_writer.write(LoadMiloSceneComplete(milo_path.to_owned()));
+        // TODO: Remove useless event
+        //scene_events_writer.write(LoadMiloSceneComplete(milo_path.to_owned()));
     }
 
     milos_updated

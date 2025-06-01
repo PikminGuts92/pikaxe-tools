@@ -101,6 +101,8 @@ fn main() {
         // Update anim
         .add_systems(Update, change_animation.run_if(resource_changed::<SelectedAnimation>))
 
+        .add_systems(Update, drop_files)
+
         .run();
 }
 
@@ -808,5 +810,42 @@ fn toggle_play_anims(
 
         *anims_paused = !*anims_paused;
         log::info!("Toggle animations: {}", if *anims_paused { "paused" } else { "playing" });
+    }
+}
+
+fn drop_files(
+    mut drag_drop_events: EventReader<FileDragAndDrop>,
+    mut scene_events_writer: EventWriter<LoadMiloObjectsWithCommands>,
+) {
+    use pikaxe::model::GltfImporter2;
+
+    for d in drag_drop_events.read() {
+        match d {
+            FileDragAndDrop::DroppedFile { path_buf, .. } => {
+                if !path_buf.as_os_str().to_str().map(|p| p.ends_with(".gltf")).unwrap_or_default() {
+                    log::warn!("Unknown file type dropped: {:?}", path_buf);
+                    continue;
+                }
+
+                let Ok(importer) = GltfImporter2::new(path_buf) else {
+                    log::error!("Error opening dropped gltf file");
+                    continue;
+                };
+
+                let assets = importer.process();
+                let objects = assets.char_clip_samples
+                    .into_iter()
+                    .map(|ccs| Object::CharClipSamples(ccs))
+                    .collect();
+
+                scene_events_writer.write(
+                    LoadMiloObjectsWithCommands(objects,
+                    |commands| {
+                        commands.insert(SelectedAnimationComponent);
+                    }
+                ));
+            },
+            _ => {}
+        }
     }
 }
