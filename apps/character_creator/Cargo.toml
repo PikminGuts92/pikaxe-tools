@@ -14,3 +14,6 @@ clap = { workspace = true }
 pikaxe = { workspace = true }
 pikaxe_bevy = { path = "../../core/pikaxe_bevy" }
 log = { workspace = true }
+
+[features]
+debug = [ "bevy/bevy_remote", "bevy/dynamic_linking" ]

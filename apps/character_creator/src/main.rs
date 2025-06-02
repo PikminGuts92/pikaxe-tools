@@ -38,6 +38,45 @@ pub struct CharacterAnimations {
     pub loop_clip: Option<Handle<AnimationClip>>
 }
 
+// TODO: Move to separate file
+pub struct MainPlugin;
+
+impl Plugin for MainPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .insert_resource(CharacterAnimations::default())
+            .add_systems(Startup, init_milos)
+            .add_systems(Startup, setup)
+            .add_systems(Update, fix_meta_proxy_cam)
+            .add_systems(Update, control_camera)
+            //.add_systems(Update, active_camera_change)
+            //.add_system(attach_free_cam)
+            .add_systems(Update, load_default_character)
+            /*.add_systems(Update, (
+                show_debug_gizmos_for_bones,
+                show_debug_gizmos_for_char_hair
+            ))*/
+            .add_systems(Update, toggle_char_mesh_visibility.run_if(input_just_pressed(KeyCode::KeyM)))
+            .add_systems(Update, toggle_play_anims.run_if(input_just_pressed(KeyCode::KeyP)))
+            .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load, drop_files))
+            .add_systems(Update, print_trans_hierarchy)
+
+            // Update char
+            .add_systems(Update, change_character.run_if(resource_changed::<SelectedCharacter>))
+
+            // Update anim
+            .add_systems(Update, change_animation.run_if(resource_changed::<SelectedAnimation>));
+
+        #[cfg(feature = "debug")] {
+            use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
+
+            app
+                .add_plugins(RemotePlugin::default())
+                .add_plugins(RemoteHttpPlugin::default());
+        }
+    }
+}
+
 fn main() {
     let args = CreatorArgs::init();
 
@@ -75,34 +114,10 @@ fn main() {
             default_outfit: args.default_outfit,
             ..Default::default()
         })
+        .add_plugins(MainPlugin)
         .add_plugins(GuiPlugin)
-        .insert_resource(CharacterAnimations::default())
         .add_plugins(FlyCameraPlugin)
         .add_plugins(InfiniteGridPlugin)
-        .add_systems(Startup, init_milos)
-        .add_systems(Startup, setup)
-        .add_systems(Update, fix_meta_proxy_cam)
-        .add_systems(Update, control_camera)
-        //.add_systems(Update, active_camera_change)
-        //.add_system(attach_free_cam)
-        .add_systems(Update, load_default_character)
-        /*.add_systems(Update, (
-            show_debug_gizmos_for_bones,
-            show_debug_gizmos_for_char_hair
-        ))*/
-        .add_systems(Update, toggle_char_mesh_visibility.run_if(input_just_pressed(KeyCode::KeyM)))
-        .add_systems(Update, toggle_play_anims.run_if(input_just_pressed(KeyCode::KeyP)))
-        .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load, drop_files))
-        .add_systems(Update, print_trans_hierarchy)
-
-        // Update char
-        .add_systems(Update, change_character.run_if(resource_changed::<SelectedCharacter>))
-
-        // Update anim
-        .add_systems(Update, change_animation.run_if(resource_changed::<SelectedAnimation>))
-
-        //.add_systems(Update, drop_files)
-
         .run();
 }
 
