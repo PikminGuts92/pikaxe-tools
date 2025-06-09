@@ -20,7 +20,10 @@ pub struct LoadMiloScene(pub String);
 pub struct LoadMiloSceneWithCommands(pub String, pub fn(&mut EntityCommands));
 
 #[derive(Event)]
-pub struct LoadMiloSceneComplete(pub String);
+pub struct LoadMiloSceneComplete {
+    pub path: String,
+    pub entities: Vec<Entity>,
+}
 
 #[derive(Event)]
 pub struct LoadMiloObjectsWithCommands(pub Vec<pikaxe::scene::Object>, pub fn(&mut EntityCommands));

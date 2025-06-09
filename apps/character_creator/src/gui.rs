@@ -2,19 +2,62 @@
 
 use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::{egui, EguiContext, EguiContextPass, EguiGlobalSettings, EguiPlugin};
+use crate::components::*;
 use crate::resources::*;
 
 pub struct GuiPlugin;
 
+#[derive(Component, Default)]
+struct EntitiesSortedByName(Vec<(Entity, String)>, bool);
+
+impl EntitiesSortedByName {
+    fn add(&mut self, value: (Entity, String)) {
+        self.0.push(value);
+        self.1 = false;
+    }
+
+    fn sort(&mut self) {
+        if !self.1 {
+            self.0.sort_by(|(_, a), (_, b)| a.cmp(b));
+            self.1 = true;
+        }
+    }
+
+    fn entries(&self) -> &Vec<(Entity, String)> {
+        &self.0
+    }
+}
+
+#[derive(Resource, Default)]
+struct SortedNames {
+    anims: EntitiesSortedByName,
+}
+
 impl Plugin for GuiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(EguiPlugin {
-            enable_multipass_for_primary_context: true
-        });
-
-        app.add_systems(Startup, init_gui);
-        app.add_systems(EguiContextPass, render_toolbar);
+        app
+            .add_plugins(EguiPlugin {
+                enable_multipass_for_primary_context: true
+            })
+            .insert_resource(SortedNames::default())
+            .add_systems(Startup, init_gui)
+            .add_systems(EguiContextPass, (
+                render_toolbar,
+                render_window,
+            ).chain())
+            .add_systems(Update, display_name_entities_added);
     }
+}
+
+fn display_name_entities_added(
+    mut sorted_names: ResMut<SortedNames>,
+    add_anim_graph_query: Query<(Entity, &GuiDisplayName), (With<CharacterAnimations>, Added<GuiDisplayName>)>,
+) {
+    for (anim_entity, GuiDisplayName(display_name)) in add_anim_graph_query.iter() {
+        sorted_names.anims.add((anim_entity, display_name.to_owned()));
+    }
+
+    sorted_names.anims.sort();
 }
 
 fn init_gui(
@@ -70,6 +113,18 @@ fn render_toolbar(
                         }
                     });
             });
+        });
+}
+
+
+fn render_window(
+    egui_ctx_query: Single<&EguiContext, With<PrimaryWindow>>,
+) {
+    let ctx = egui_ctx_query.into_inner().get();
+
+    egui::Window::new("Some Menu")
+        .show(ctx, |ui| {
+            ui.label("Hello test");
         });
 }
 

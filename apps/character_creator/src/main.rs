@@ -2,10 +2,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod args;
+mod components;
 mod gui;
 mod resources;
 
 use args::*;
+use components::*;
 use gui::GuiPlugin;
 use resources::*;
 
@@ -32,19 +34,12 @@ pub enum HelpText {
 
 }*/
 
-#[derive(Default, Resource)]
-pub struct CharacterAnimations {
-    pub enter_clip: Option<Handle<AnimationClip>>,
-    pub loop_clip: Option<Handle<AnimationClip>>
-}
-
 // TODO: Move to separate file
 pub struct MainPlugin;
 
 impl Plugin for MainPlugin {
     fn build(&self, app: &mut App) {
         app
-            .insert_resource(CharacterAnimations::default())
             .add_systems(Startup, init_milos)
             .add_systems(Startup, setup)
             .add_systems(Update, fix_meta_proxy_cam)
@@ -58,8 +53,10 @@ impl Plugin for MainPlugin {
             ))*/
             .add_systems(Update, toggle_char_mesh_visibility.run_if(input_just_pressed(KeyCode::KeyM)))
             .add_systems(Update, toggle_play_anims.run_if(input_just_pressed(KeyCode::KeyP)))
-            .add_systems(PostUpdate, (set_placer_as_char_parent, play_anim_after_load, drop_files))
+            .add_systems(PostUpdate, (set_placer_as_char_parent, after_load_milo, play_anim_after_load, drop_files))
             .add_systems(Update, print_trans_hierarchy)
+
+            .add_systems(Update, after_load_milo.run_if(on_event::<LoadMiloSceneComplete>))
 
             // Update char
             .add_systems(Update, change_character.run_if(resource_changed::<SelectedCharacter>))
@@ -636,55 +633,93 @@ fn set_placer_as_char_parent(
     }
 }
 
+fn after_load_milo(
+    mut milo_event_reader: EventReader<LoadMiloSceneComplete>,
+    mut commands: Commands,
+    milo_anims_query: Query<(&MiloCharClip, &MiloObject), With<SelectedAnimationComponent>>,
+    root_query: Single<Entity, With<MiloRoot>>,
+    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
+) {
+    let root_entity = root_query.into_inner();
+
+    for LoadMiloSceneComplete { path, entities } in milo_event_reader.read() {
+        println!("{path}");
+
+        if !path.starts_with("char/") || !path.contains("/anims") {
+            continue;
+        }
+
+        let anims = entities
+            .iter()
+            .filter_map(|&e| milo_anims_query.get(e).ok())
+            .collect::<Vec<_>>();
+
+        if anims.is_empty() {
+            continue;
+        }
+
+        let mut char_anims = CharacterAnimations::default();
+
+        for (MiloCharClip(anim_clip_handle), milo_object) in anims {
+            match milo_object.name.as_str() {
+                "ui_enter" => {
+                    let (anim_graph, _) = AnimationGraph::from_clip(anim_clip_handle.clone());
+                    char_anims.enter_clip = Some((anim_clip_handle.clone(), animation_graphs.add(anim_graph)));
+                },
+                "ui_loop" => {
+                    let (anim_graph, _) = AnimationGraph::from_clip(anim_clip_handle.clone());
+                    char_anims.loop_clip = Some((anim_clip_handle.clone(), animation_graphs.add(anim_graph)));
+                },
+                _ => continue
+            }
+        }
+
+        if char_anims.enter_clip.is_none() && char_anims.loop_clip.is_none() {
+            continue;
+        }
+
+        let base_file_name = path
+            .split("/")
+            .last()
+            .and_then(|p| p.split(".").next())
+            .unwrap();
+
+        println!("Loaded char anims for {base_file_name} ({path})");
+
+        commands
+            .spawn((
+                char_anims,
+                GuiDisplayName(base_file_name.to_string()),
+                ChildOf(root_entity)
+            ));
+    }
+}
+
 fn play_anim_after_load(
     mut commands: Commands,
     state: Res<MiloState>,
-    mut char_anims: ResMut<CharacterAnimations>,
-    milo_anims_query: Query<(Entity, &MiloCharClip, &MiloObject), Added<SelectedAnimationComponent>>,
+    char_anims_query: Query<(Entity, &CharacterAnimations), Added<CharacterAnimations>>,
     trans_query: Query<(Entity, &Name), (With<MiloObject>, With<Transform>)>,
     root_query: Single<Entity, With<MiloRoot>>,
     animations: Res<Assets<AnimationClip>>,
-    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
+    animation_graphs: Res<Assets<AnimationGraph>>,
 ) {
-    let play_clip = !milo_anims_query.is_empty();
-
-    for (_entity, MiloCharClip(anim_clip_handle), milo_object) in milo_anims_query.iter() {
-        match milo_object.name.as_str() {
-            "ui_enter" => {
-                char_anims.enter_clip = Some(anim_clip_handle.clone());
-            },
-            "ui_loop" => {
-                char_anims.loop_clip = Some(anim_clip_handle.clone());
-            },
-            _ => {}
-        }
-    }
-
-    // TODO: Move to event/observer or different system?
-    if !play_clip || (char_anims.enter_clip.is_none() && char_anims.loop_clip.is_none()) {
+    if char_anims_query.is_empty() {
         return;
     }
 
     let root_entity = root_query.into_inner();
+    let (_anim_entity, char_anims) = char_anims_query.iter().next().unwrap(); // TODO: Handle differently? And figure out single query issue
 
-    let mut anim_player = AnimationPlayer::default();
-    //let mut anim_graph = AnimationGraph::new();
-    //let node_idx = anim_graph.add_clip(anim_clip, 1.0, anim_graph.root);
+    let anim_loop_clip = animations.get(char_anims.loop_clip.as_ref().map(|(ac, _)| ac).unwrap()).unwrap();
+    let anim_loop_graph_handle = char_anims.loop_clip.as_ref().map(|(_, ag)| ag).unwrap();
+    let anim_loop_graph = animation_graphs.get(anim_loop_graph_handle).unwrap();
 
-    // TODO: Combine enter + loop clips somehow
-    //let anim_enter_handle = char_anims.enter_clip.as_ref().unwrap();
-    let anim_loop_handle = char_anims.loop_clip.as_ref().unwrap();
-
-    let (anim_graph, loop_node_index) = AnimationGraph::from_clip(anim_loop_handle.clone());
-    //let loop_node_index = anim_graph.add_clip(anim_loop_handle.clone(), 1.0, anim_graph.root);
-
-    let anim_loop = animations.get(anim_loop_handle).unwrap();
-
-    log::info!("Anim loaded with duration: {}s", anim_loop.duration());
+    log::info!("Anim loaded with duration: {}s", anim_loop_clip.duration());
 
     for (entity, name) in trans_query.iter() {
         let trans_target_id = AnimationTargetId::from_name(name);
-        if anim_loop.curves().contains_key(&trans_target_id) {            
+        if anim_loop_clip.curves().contains_key(&trans_target_id) {
             commands
                 .entity(entity)
                 .insert(AnimationTarget {
@@ -701,8 +736,15 @@ fn play_anim_after_load(
     };
     let node_idx = anim_graph.add_clip(animations.add(end_anim_clip), 1.0, anim_graph.root);*/
 
+    // TODO: Use AnimationTransitions to blend enter/loop anims
+    let mut anim_player = AnimationPlayer::default();
+    let node_idx = anim_loop_graph.nodes().skip(1).next().unwrap();
+
+    let node_count = anim_loop_graph.nodes().count();
+    println!("Found {node_count} nodes in anim");
+
     anim_player
-        .play(loop_node_index)
+        .play(node_idx)
         .set_speed(30.0)
         .repeat();
 
@@ -710,7 +752,7 @@ fn play_anim_after_load(
         .entity(root_entity)
         .insert((
             anim_player,
-            AnimationGraphHandle(animation_graphs.add(anim_graph))
+            AnimationGraphHandle(anim_loop_graph_handle.clone())
         ));
 
     log::debug!("Playing character animation!");
@@ -806,6 +848,7 @@ fn toggle_play_anims(
     mut commands: Commands,
     mut anim_player_query: Query<&mut AnimationPlayer>,
     rigid_body_query: Query<Entity, With<RigidBody>>,
+    mut time: ResMut<Time<Virtual>>,
 ) {
     for mut anim_player in anim_player_query.iter_mut() {
         if *anims_paused {
@@ -815,6 +858,8 @@ fn toggle_play_anims(
                     .entity(rigid_body_entity)
                     .remove::<RigidBodyDisabled>();
             }
+
+            //time.unpause();
         } else {
             anim_player.pause_all();
             for rigid_body_entity in rigid_body_query.iter() {
@@ -823,6 +868,8 @@ fn toggle_play_anims(
                     .insert(RigidBodyDisabled)
                     .insert(Velocity::zero());
             }
+
+            //time.pause();
         }
 
         *anims_paused = !*anims_paused;

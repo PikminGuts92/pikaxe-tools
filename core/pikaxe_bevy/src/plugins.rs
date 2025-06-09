@@ -198,24 +198,24 @@ fn consolidate_milo_scene_events(
     mut scene_events: ResMut<Events<LoadMiloScene>>,
     mut scene_events_commands:  ResMut<Events<LoadMiloSceneWithCommands>>,
     mut objects_events_commands:  ResMut<Events<LoadMiloObjectsWithCommands>>,
-) -> Vec<(LoadMilo, Option<fn(&mut EntityCommands)>)> {
+) -> Vec<(LoadMilo, Option<fn(&mut EntityCommands)>, Option<String>)> {
     return scene_events
         .drain()
-        .map(|LoadMiloScene(p)| (LoadMilo::FromArkPath(p), None))
+        .map(|LoadMiloScene(p)| (LoadMilo::FromArkPath(p.to_owned()), None, Some(p)))
         .chain(scene_events_commands
             .drain()
-            .map(|LoadMiloSceneWithCommands(p, c)| (LoadMilo::FromArkPath(p), Some(c)))
+            .map(|LoadMiloSceneWithCommands(p, c)| (LoadMilo::FromArkPath(p.to_owned()), Some(c), Some(p)))
         )
         .chain(objects_events_commands
             .drain()
-            .map(|LoadMiloObjectsWithCommands(o, c)| (LoadMilo::FromObjects(o), Some(c)))
+            .map(|LoadMiloObjectsWithCommands(o, c)| (LoadMilo::FromObjects(o), Some(c), None))
         )
         .collect()
 }
 
 // TODO: Move to separate file?
 fn process_milo_scene_events(
-    load_milo_events: In<Vec<(LoadMilo, Option<fn(&mut EntityCommands)>)>>,
+    load_milo_events: In<Vec<(LoadMilo, Option<fn(&mut EntityCommands)>, Option<String>)>>,
     mut commands: Commands,
     mut state: ResMut<MiloState>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -239,7 +239,7 @@ fn process_milo_scene_events(
     }*/
 
     // TODO: Check if path ends in .milo
-    for (load_milo, callback) in load_milo_events.0 {
+    for (load_milo, callback, source_path) in load_milo_events.0 {
         let (sys_info, mut milo) = match load_milo {
             LoadMilo::FromArkPath(milo_path) => {
                 log::debug!("Loading Scene: \"{}\"", milo_path);
@@ -402,6 +402,7 @@ fn process_milo_scene_events(
         let obj_keys = (0..milo.get_entries().len())
             .map(|_| state.get_next_obj_key())
             .collect::<Vec<_>>();
+        let mut entities = Vec::new();
 
         for (i, obj) in milo.get_entries().iter().enumerate() {
             match obj {
@@ -432,6 +433,7 @@ fn process_milo_scene_events(
                         .add_child(placer_entity);
 
                     log::info!("Loaded band placer: {}", band_placer.get_name());
+                    entities.push(placer_entity);
                 },
                 Object::Cam(cam) => {
                     let cam_entity = commands
@@ -473,6 +475,7 @@ fn process_milo_scene_events(
                         .add_child(cam_entity);
 
                     log::info!("Loaded cam: {}", cam.get_name());
+                    entities.push(cam_entity);
                 },
                 Object::CharClipSamples(ccs) => {
                     let mut anim_clip = AnimationClip::default();
@@ -583,6 +586,7 @@ fn process_milo_scene_events(
                     }
 
                     log::info!("Loaded char clip samples: {}", ccs.get_name());
+                    entities.push(anim_entity);
                 },
                 Object::CharHair(ch) => {
                     continue;
@@ -702,6 +706,8 @@ fn process_milo_scene_events(
                     }
 
                     log::info!("Loaded char hair: {}", ch.get_name());
+                    // TODO: Add entities
+                    //entities.push(strand_entity);
                 },
                 Object::Group(group) => {
                     let mat = map_matrix(group.get_local_xfm());
@@ -730,6 +736,7 @@ fn process_milo_scene_events(
                         .add_child(group_entity);
 
                     log::info!("Loaded group: {}", group.get_name());
+                    entities.push(group_entity);
                 },
                 Object::Mesh(mesh) => {
                     // Ignore meshes without geometry (used mostly in GH1)
@@ -896,6 +903,7 @@ fn process_milo_scene_events(
                         .add_child(mesh_entity);
 
                     log::info!("Loaded mesh: {}", mesh.get_name());
+                    entities.push(mesh_entity);
                 },
                 Object::Trans(trans) => {
                     let mat = map_matrix(trans.get_local_xfm());
@@ -932,6 +940,7 @@ fn process_milo_scene_events(
 
                     log::info!("Loaded trans: {}", trans.get_name());
                     trans_map.insert(trans.get_name(), trans_entity);
+                    entities.push(trans_entity);
                 },
                 _ => {}
             }
@@ -958,8 +967,10 @@ fn process_milo_scene_events(
             state.objects.insert(key, milo_entry);
         }
 
-        // TODO: Remove useless event
-        //scene_events_writer.write(LoadMiloSceneComplete(milo_path.to_owned()));
+        scene_events_writer.write(LoadMiloSceneComplete {
+            path: source_path.unwrap_or_default(),
+            entities
+        });
     }
 
     milos_updated
